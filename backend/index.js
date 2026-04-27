@@ -5,6 +5,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
 require('dotenv').config();
 
+const authRouter = require('./routes/auth');
 const artistesRouter = require('./routes/artistes');
 const videosRouter = require('./routes/videos');
 const musicRouter = require('./routes/music');
@@ -23,6 +24,7 @@ const swaggerOptions = {
 };
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerJsdoc(swaggerOptions)));
 
+app.use('/auth', authRouter);
 app.use('/artistes', artistesRouter);
 app.use('/videos', videosRouter);
 app.use('/music', musicRouter);

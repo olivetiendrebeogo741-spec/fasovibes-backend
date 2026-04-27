@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../widgets/app_input_field.dart';
+import '../../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -22,9 +23,22 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _login() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    if (email.isEmpty || password.isEmpty) return;
+
     setState(() => _loading = true);
-    await Future.delayed(const Duration(seconds: 1)); // remplacer par appel API
+    final result = await AuthService.login(email: email, motDePasse: password);
     setState(() => _loading = false);
+
+    if (!mounted) return;
+    if (result['success'] == true) {
+      Navigator.pop(context);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message'] ?? 'Erreur'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   @override

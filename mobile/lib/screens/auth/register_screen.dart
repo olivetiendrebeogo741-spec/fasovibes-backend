@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'login_screen.dart' show _InputField;
+import '../../widgets/app_input_field.dart';
+import '../../services/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -24,9 +25,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _register() async {
+    final nom = _nomController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    if (nom.isEmpty || email.isEmpty || password.isEmpty) return;
+
     setState(() => _loading = true);
-    await Future.delayed(const Duration(seconds: 1)); // remplacer par appel API
+    final result = await AuthService.register(nom: nom, email: email, motDePasse: password);
     setState(() => _loading = false);
+
+    if (!mounted) return;
+    if (result['success'] == true) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Compte créé ! Connecte-toi.'), backgroundColor: Colors.green),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message'] ?? 'Erreur'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   @override
@@ -97,7 +115,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 32),
 
               // Nom
-              _InputField(
+              AppInputField(
                 controller: _nomController,
                 label: 'Nom d\'artiste / Pseudo',
                 icon: Icons.person_outline,
@@ -105,7 +123,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 16),
 
               // Email
-              _InputField(
+              AppInputField(
                 controller: _emailController,
                 label: 'Email',
                 icon: Icons.email_outlined,
@@ -114,7 +132,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 16),
 
               // Mot de passe
-              _InputField(
+              AppInputField(
                 controller: _passwordController,
                 label: 'Mot de passe',
                 icon: Icons.lock_outline,
