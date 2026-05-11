@@ -30,7 +30,12 @@ const swaggerOptions = {
   },
   apis: ['./routes/*.js'],
 };
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerJsdoc(swaggerOptions)));
+try {
+  const swaggerSpec = swaggerJsdoc(swaggerOptions);
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+} catch (err) {
+  console.error('Swagger init error (non-bloquant):', err.message);
+}
 
 app.get('/', (req, res) => res.json({ status: 'success', message: 'API FasoVibes en ligne' }));
 
