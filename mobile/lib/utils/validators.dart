@@ -1,0 +1,19 @@
+class Validators {
+  static String? email(String? value) {
+    if (value == null || value.trim().isEmpty) return "L'email est obligatoire";
+    final regex = RegExp(r'^\S+@\S+\.\S+$');
+    if (!regex.hasMatch(value.trim())) return 'Email invalide';
+    return null;
+  }
+
+  static String? password(String? value) {
+    if (value == null || value.isEmpty) return 'Le mot de passe est obligatoire';
+    if (value.length < 6) return 'Le mot de passe doit faire au moins 6 caractères';
+    return null;
+  }
+
+  static String? required(String? value, String fieldName) {
+    if (value == null || value.trim().isEmpty) return '$fieldName est obligatoire';
+    return null;
+  }
+}

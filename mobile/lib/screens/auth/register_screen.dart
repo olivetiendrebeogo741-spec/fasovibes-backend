@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../widgets/app_input_field.dart';
 import '../../services/auth_service.dart';
+import '../../utils/validators.dart';
+import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -10,6 +12,7 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  final _formKey = GlobalKey<FormState>();
   final _nomController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -25,25 +28,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _register() async {
-    final nom = _nomController.text.trim();
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
-    if (nom.isEmpty || email.isEmpty || password.isEmpty) return;
-
+    if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
-    final result = await AuthService.register(nom: nom, email: email, motDePasse: password);
-    setState(() => _loading = false);
-
-    if (!mounted) return;
-    if (result['success'] == true) {
-      Navigator.pop(context);
+    try {
+      await AuthService.register(
+        nom: _nomController.text.trim(),
+        email: _emailController.text.trim(),
+        motDePasse: _passwordController.text,
+      );
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Compte créé ! Connecte-toi.'), backgroundColor: Colors.green),
       );
-    } else {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result['message'] ?? 'Erreur'), backgroundColor: Colors.red),
+        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
       );
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -60,169 +64,130 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 16),
-
-              // Header
-              const Text(
-                'Crée ton compte 🎵',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 30,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Rejoins la communauté FasoVibes.',
-                style: TextStyle(color: Colors.white38, fontSize: 15),
-              ),
-
-              const SizedBox(height: 44),
-
-              // Avatar picker
-              Center(
-                child: Stack(
-                  children: [
-                    CircleAvatar(
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 16),
+                const Text('Crée ton compte 🎵',
+                    style: TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                const Text('Rejoins la communauté FasoVibes.',
+                    style: TextStyle(color: Colors.white38, fontSize: 15)),
+                const SizedBox(height: 44),
+                Center(
+                  child: Stack(children: [
+                    const CircleAvatar(
                       radius: 44,
-                      backgroundColor: const Color(0xFF1C1C1C),
+                      backgroundColor: Color(0xFF1C1C1C),
                       child: Icon(Icons.person, size: 46, color: Colors.white24),
                     ),
                     Positioned(
-                      bottom: 0,
-                      right: 0,
+                      bottom: 0, right: 0,
                       child: Container(
-                        width: 30,
-                        height: 30,
-                        decoration: BoxDecoration(
+                        width: 30, height: 30,
+                        decoration: const BoxDecoration(
                           shape: BoxShape.circle,
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFFF8C00), Color(0xFFFF4500)],
-                          ),
+                          gradient: LinearGradient(colors: [Color(0xFFFF8C00), Color(0xFFFF4500)]),
                         ),
                         child: const Icon(Icons.camera_alt, size: 16, color: Colors.white),
                       ),
                     ),
-                  ],
+                  ]),
                 ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // Nom
-              AppInputField(
-                controller: _nomController,
-                label: 'Nom d\'artiste / Pseudo',
-                icon: Icons.person_outline,
-              ),
-              const SizedBox(height: 16),
-
-              // Email
-              AppInputField(
-                controller: _emailController,
-                label: 'Email',
-                icon: Icons.email_outlined,
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 16),
-
-              // Mot de passe
-              AppInputField(
-                controller: _passwordController,
-                label: 'Mot de passe',
-                icon: Icons.lock_outline,
-                obscure: _obscurePassword,
-                suffix: IconButton(
-                  icon: Icon(
-                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                    color: Colors.white38,
-                    size: 20,
-                  ),
-                  onPressed: () =>
-                      setState(() => _obscurePassword = !_obscurePassword),
+                const SizedBox(height: 32),
+                AppInputField(
+                  controller: _nomController,
+                  label: 'Nom d\'artiste / Pseudo',
+                  icon: Icons.person_outline,
+                  validator: (v) => Validators.required(v, 'Le nom'),
                 ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // Bouton inscription
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFF8C00), Color(0xFFFF4500)],
+                const SizedBox(height: 16),
+                AppInputField(
+                  controller: _emailController,
+                  label: 'Email',
+                  icon: Icons.email_outlined,
+                  keyboardType: TextInputType.emailAddress,
+                  validator: Validators.email,
+                ),
+                const SizedBox(height: 16),
+                AppInputField(
+                  controller: _passwordController,
+                  label: 'Mot de passe',
+                  icon: Icons.lock_outline,
+                  obscure: _obscurePassword,
+                  validator: Validators.password,
+                  suffix: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                      color: Colors.white38, size: 20,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.orange.withValues(alpha: 0.35),
-                        blurRadius: 20,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
+                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                   ),
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                ),
+                const SizedBox(height: 32),
+                _GradientButton(label: 'Créer mon compte', loading: _loading, onPressed: _register),
+                const SizedBox(height: 24),
+                Center(
+                  child: TextButton(
+                    onPressed: () => Navigator.pushReplacement(
+                      context, MaterialPageRoute(builder: (_) => const LoginScreen())),
+                    child: RichText(
+                      text: const TextSpan(
+                        text: 'Déjà un compte ? ',
+                        style: TextStyle(color: Colors.white38, fontSize: 14),
+                        children: [
+                          TextSpan(text: 'Se connecter',
+                              style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
+                        ],
                       ),
                     ),
-                    onPressed: _loading ? null : _register,
-                    child: _loading
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2.5,
-                            ),
-                          )
-                        : const Text(
-                            'Créer mon compte',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 24),
-              Center(
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: RichText(
-                    text: const TextSpan(
-                      text: 'Déjà un compte ? ',
-                      style: TextStyle(color: Colors.white38, fontSize: 14),
-                      children: [
-                        TextSpan(
-                          text: 'Se connecter',
-                          style: TextStyle(
-                            color: Colors.orange,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-            ],
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GradientButton extends StatelessWidget {
+  final String label;
+  final bool loading;
+  final VoidCallback onPressed;
+
+  const _GradientButton({required this.label, required this.loading, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: const LinearGradient(colors: [Color(0xFFFF8C00), Color(0xFFFF4500)]),
+          boxShadow: [
+            BoxShadow(color: Colors.orange.withValues(alpha: 0.35), blurRadius: 20, offset: const Offset(0, 6)),
+          ],
+        ),
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+          onPressed: loading ? null : onPressed,
+          child: loading
+              ? const SizedBox(width: 22, height: 22,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+              : Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
         ),
       ),
     );

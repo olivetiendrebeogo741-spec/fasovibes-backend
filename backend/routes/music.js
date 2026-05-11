@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const Music = require('../models/Music');
+const musicController = require('../controllers/musicController');
+const authenticate = require('../middleware/authenticate');
 
 /**
  * @openapi
@@ -11,26 +12,41 @@ const Music = require('../models/Music');
  *       200:
  *         description: Liste des morceaux
  */
-router.get('/', async (req, res) => {
-  try {
-    const tracks = await Music.find().sort({ createdAt: -1 });
-    res.json(tracks);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+router.get('/', musicController.getAll);
+
+/**
+ * @openapi
+ * /music/{id}:
+ *   get:
+ *     summary: Récupérer un morceau par ID
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Morceau trouvé
+ *       404:
+ *         description: Morceau introuvable
+ */
+router.get('/:id', musicController.getOne);
 
 /**
  * @openapi
  * /music:
  *   post:
- *     summary: Uploader un morceau
+ *     summary: Ajouter un morceau (authentification requise)
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [titre, artisteId, audioUrl]
  *             properties:
  *               titre:
  *                 type: string
@@ -44,13 +60,25 @@ router.get('/', async (req, res) => {
  *       201:
  *         description: Morceau créé
  */
-router.post('/', async (req, res) => {
-  try {
-    const track = await Music.create(req.body);
-    res.status(201).json(track);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
+router.post('/', authenticate, musicController.create);
+
+/**
+ * @openapi
+ * /music/{id}:
+ *   delete:
+ *     summary: Supprimer un morceau (authentification requise)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       204:
+ *         description: Morceau supprimé
+ */
+router.delete('/:id', authenticate, musicController.remove);
 
 module.exports = router;

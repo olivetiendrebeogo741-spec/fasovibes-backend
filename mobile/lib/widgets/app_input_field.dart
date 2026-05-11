@@ -7,6 +7,7 @@ class AppInputField extends StatelessWidget {
   final bool obscure;
   final TextInputType? keyboardType;
   final Widget? suffix;
+  final String? Function(String?)? validator;
 
   const AppInputField({
     super.key,
@@ -16,14 +17,16 @@ class AppInputField extends StatelessWidget {
     this.obscure = false,
     this.keyboardType,
     this.suffix,
+    this.validator,
   });
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
+    return TextFormField(
       controller: controller,
       obscureText: obscure,
       keyboardType: keyboardType,
+      validator: validator,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: label,
@@ -40,6 +43,15 @@ class AppInputField extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Colors.orange, width: 1.5),
         ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+        ),
+        errorStyle: const TextStyle(color: Colors.redAccent, fontSize: 12),
       ),
     );
   }

@@ -4,7 +4,7 @@ class UserModel {
   final String email;
   final String? photoProfil;
 
-  UserModel({
+  const UserModel({
     required this.id,
     required this.nom,
     required this.email,
@@ -12,9 +12,23 @@ class UserModel {
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) => UserModel(
-        id: json['_id'] ?? '',
+        id: (json['_id'] ?? json['id'] ?? '').toString(),
         nom: json['nom'] ?? '',
         email: json['email'] ?? '',
-        photoProfil: json['photoProfil'],
+        photoProfil: json['photoProfil'] as String?,
+      );
+
+  Map<String, dynamic> toJson() => {
+        '_id': id,
+        'nom': nom,
+        'email': email,
+        'photoProfil': photoProfil,
+      };
+
+  UserModel copyWith({String? nom, String? email, String? photoProfil}) => UserModel(
+        id: id,
+        nom: nom ?? this.nom,
+        email: email ?? this.email,
+        photoProfil: photoProfil ?? this.photoProfil,
       );
 }

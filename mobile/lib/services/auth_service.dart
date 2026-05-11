@@ -1,68 +1,63 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import '../config/constants.dart';
+import '../models/user.dart';
+import '../utils/app_exception.dart';
+import 'storage_service.dart';
 
 class AuthService {
-  static const _base = 'https://fasovibes-backend.onrender.com';
-  static const _tokenKey = 'fasovibes_token';
-
-  static Future<Map<String, dynamic>> register({
+  static Future<UserModel> register({
     required String nom,
     required String email,
     required String motDePasse,
   }) async {
     try {
       final res = await http.post(
-        Uri.parse('$_base/auth/register'),
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.register}'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'nom': nom, 'email': email, 'motDePasse': motDePasse}),
       );
-      final data = jsonDecode(res.body);
-      if (res.statusCode == 201) return {'success': true, ...data};
-      return {'success': false, 'message': data['message'] ?? 'Erreur inscription'};
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      if (res.statusCode == 201) {
+        return UserModel.fromJson(data['data'] ?? data);
+      }
+      throw AppException(data['message'] ?? 'Erreur lors de l\'inscription.', statusCode: res.statusCode);
+    } on AppException {
+      rethrow;
     } catch (_) {
-      return {'success': false, 'message': 'Impossible de contacter le serveur'};
+      throw const NetworkException();
     }
   }
 
-  static Future<Map<String, dynamic>> login({
+  static Future<UserModel> login({
     required String email,
     required String motDePasse,
   }) async {
     try {
       final res = await http.post(
-        Uri.parse('$_base/auth/login'),
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.login}'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email, 'motDePasse': motDePasse}),
       );
-      final data = jsonDecode(res.body);
-      if (res.statusCode == 200 && data['token'] != null) {
-        await _saveToken(data['token']);
-        return {'success': true, 'user': data['user']};
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      if (res.statusCode == 200) {
+        final userData = data['data'] ?? data;
+        final token = userData['token'] as String;
+        final user = UserModel.fromJson(userData['user'] as Map<String, dynamic>);
+        await StorageService.saveToken(token);
+        await StorageService.saveUser(id: user.id, nom: user.nom, email: user.email);
+        return user;
       }
-      return {'success': false, 'message': data['message'] ?? 'Email ou mot de passe incorrect'};
+      if (res.statusCode == 401) throw const UnauthorizedException('Email ou mot de passe incorrect.');
+      throw AppException(data['message'] ?? 'Erreur lors de la connexion.', statusCode: res.statusCode);
+    } on AppException {
+      rethrow;
     } catch (_) {
-      return {'success': false, 'message': 'Impossible de contacter le serveur'};
+      throw const NetworkException();
     }
   }
 
-  static Future<void> _saveToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_tokenKey, token);
-  }
+  static Future<void> logout() => StorageService.clear();
 
-  static Future<String?> getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_tokenKey);
-  }
-
-  static Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey);
-  }
-
-  static Future<bool> isLoggedIn() async {
-    final token = await getToken();
-    return token != null;
-  }
+  static Future<bool> isLoggedIn() => StorageService.isLoggedIn();
 }

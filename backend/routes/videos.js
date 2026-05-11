@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const Video = require('../models/Video');
+const videoController = require('../controllers/videoController');
+const authenticate = require('../middleware/authenticate');
 
 /**
  * @openapi
@@ -11,26 +12,41 @@ const Video = require('../models/Video');
  *       200:
  *         description: Liste des vidéos
  */
-router.get('/', async (req, res) => {
-  try {
-    const videos = await Video.find().sort({ createdAt: -1 });
-    res.json(videos);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+router.get('/', videoController.getAll);
+
+/**
+ * @openapi
+ * /videos/{id}:
+ *   get:
+ *     summary: Récupérer une vidéo par ID
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Vidéo trouvée
+ *       404:
+ *         description: Vidéo introuvable
+ */
+router.get('/:id', videoController.getOne);
 
 /**
  * @openapi
  * /videos:
  *   post:
- *     summary: Uploader une vidéo
+ *     summary: Uploader une vidéo (authentification requise)
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [titre, artisteId, videoUrl]
  *             properties:
  *               titre:
  *                 type: string
@@ -42,14 +58,7 @@ router.get('/', async (req, res) => {
  *       201:
  *         description: Vidéo créée
  */
-router.post('/', async (req, res) => {
-  try {
-    const video = await Video.create(req.body);
-    res.status(201).json(video);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
+router.post('/', authenticate, videoController.create);
 
 /**
  * @openapi
@@ -66,17 +75,54 @@ router.post('/', async (req, res) => {
  *       200:
  *         description: Like ajouté
  */
-router.patch('/:id/like', async (req, res) => {
-  try {
-    const video = await Video.findByIdAndUpdate(
-      req.params.id,
-      { $inc: { likes: 1 } },
-      { new: true }
-    );
-    res.json(video);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
+router.patch('/:id/like', videoController.like);
+
+/**
+ * @openapi
+ * /videos/{id}/commentaires:
+ *   post:
+ *     summary: Commenter une vidéo (authentification requise)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [texte]
+ *             properties:
+ *               texte:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Commentaire ajouté
+ */
+router.post('/:id/commentaires', authenticate, videoController.addComment);
+
+/**
+ * @openapi
+ * /videos/{id}:
+ *   delete:
+ *     summary: Supprimer une vidéo (authentification requise)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       204:
+ *         description: Vidéo supprimée
+ */
+router.delete('/:id', authenticate, videoController.remove);
 
 module.exports = router;

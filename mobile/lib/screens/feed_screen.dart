@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import '../models/video.dart';
+import '../services/video_service.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -10,25 +10,26 @@ class FeedScreen extends StatefulWidget {
 }
 
 class _FeedScreenState extends State<FeedScreen> {
-  List<dynamic> _videos = [];
+  List<VideoModel> _videos = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _fetchVideos();
+    _load();
   }
 
-  Future<void> _fetchVideos() async {
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
     try {
-      final res = await http.get(
-        Uri.parse('https://fasovibes-backend.onrender.com/videos'),
-      );
-      if (res.statusCode == 200) {
-        setState(() => _videos = json.decode(res.body));
-      }
-    } catch (_) {}
-    setState(() => _loading = false);
+      final videos = await VideoService.getAll();
+      if (mounted) setState(() => _videos = videos);
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
@@ -38,47 +39,41 @@ class _FeedScreenState extends State<FeedScreen> {
       appBar: AppBar(
         title: const Text(
           'FasoVibes',
-          style: TextStyle(
-            color: Colors.orange,
-            fontWeight: FontWeight.bold,
-            fontSize: 22,
-          ),
+          style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 22),
         ),
         backgroundColor: Colors.black,
         centerTitle: true,
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: Colors.orange))
-          : _videos.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.video_library, size: 64, color: Colors.orange),
-                      SizedBox(height: 16),
-                      Text(
-                        'Aucune vidéo pour l\'instant',
-                        style: TextStyle(color: Colors.white70, fontSize: 16),
+          : _error != null
+              ? _ErrorState(message: _error!, onRetry: _load)
+              : _videos.isEmpty
+                  ? const _EmptyState()
+                  : PageView.builder(
+                      scrollDirection: Axis.vertical,
+                      itemCount: _videos.length,
+                      itemBuilder: (context, index) => _VideoCard(
+                        video: _videos[index],
+                        onLike: () => _onLike(index),
                       ),
-                    ],
-                  ),
-                )
-              : PageView.builder(
-                  scrollDirection: Axis.vertical,
-                  itemCount: _videos.length,
-                  itemBuilder: (context, index) {
-                    final video = _videos[index];
-                    return _VideoCard(video: video);
-                  },
-                ),
+                    ),
     );
+  }
+
+  Future<void> _onLike(int index) async {
+    try {
+      final updated = await VideoService.like(_videos[index].id);
+      if (mounted) setState(() => _videos[index] = updated);
+    } catch (_) {}
   }
 }
 
 class _VideoCard extends StatelessWidget {
-  final Map<String, dynamic> video;
+  final VideoModel video;
+  final VoidCallback onLike;
 
-  const _VideoCard({required this.video});
+  const _VideoCard({required this.video, required this.onLike});
 
   @override
   Widget build(BuildContext context) {
@@ -86,9 +81,7 @@ class _VideoCard extends StatelessWidget {
       color: Colors.black,
       child: Stack(
         children: [
-          Center(
-            child: Icon(Icons.play_circle_fill, size: 80, color: Colors.white24),
-          ),
+          const Center(child: Icon(Icons.play_circle_fill, size: 80, color: Colors.white24)),
           Positioned(
             bottom: 80,
             left: 16,
@@ -97,18 +90,11 @@ class _VideoCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  video['titre'] ?? 'Sans titre',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  video.titre,
+                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  '@${video['artisteId'] ?? 'artiste'}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 14),
-                ),
+                Text('@${video.artisteId}', style: const TextStyle(color: Colors.white70, fontSize: 14)),
               ],
             ),
           ),
@@ -117,16 +103,61 @@ class _VideoCard extends StatelessWidget {
             right: 12,
             child: Column(
               children: [
-                const Icon(Icons.favorite_border, color: Colors.white, size: 32),
+                GestureDetector(
+                  onTap: onLike,
+                  child: const Icon(Icons.favorite_border, color: Colors.white, size: 32),
+                ),
+                Text('${video.likes}', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                const SizedBox(height: 16),
                 Text(
-                  '${video['likes'] ?? 0}',
+                  '${video.commentaires.length}',
                   style: const TextStyle(color: Colors.white, fontSize: 12),
                 ),
-                const SizedBox(height: 16),
                 const Icon(Icons.comment, color: Colors.white, size: 32),
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.video_library, size: 64, color: Colors.orange),
+          SizedBox(height: 16),
+          Text('Aucune vidéo pour l\'instant', style: TextStyle(color: Colors.white70, fontSize: 16)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _ErrorState({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.wifi_off, size: 64, color: Colors.orange),
+          const SizedBox(height: 16),
+          Text(message, style: const TextStyle(color: Colors.white70), textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          TextButton(onPressed: onRetry, child: const Text('Réessayer', style: TextStyle(color: Colors.orange))),
         ],
       ),
     );
