@@ -44,7 +44,7 @@ app.use('/artistes', artistesRouter);
 app.use('/videos', videosRouter);
 app.use('/music', musicRouter);
 
-app.all('*', (req, res) => {
+app.use((req, res) => {
   res.status(404).json({ status: 'fail', message: `Route ${req.originalUrl} introuvable.` });
 });
 
