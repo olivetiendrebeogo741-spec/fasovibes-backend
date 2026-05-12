@@ -45,7 +45,7 @@ class _SplashGateState extends State<_SplashGate> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => MainNavigation(initialIndex: loggedIn ? 2 : 0),
+        builder: (_) => MainNavigation(initialIndex: loggedIn ? 0 : 0),
       ),
     );
   }
