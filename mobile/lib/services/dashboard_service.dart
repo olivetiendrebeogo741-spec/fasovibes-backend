@@ -60,6 +60,7 @@ class DashboardService {
   static Future<MusicModel> uploadMusic({
     required String titre,
     required String filePath,
+    String? coverPath,
   }) async {
     try {
       final token = await _token();
@@ -73,6 +74,9 @@ class DashboardService {
       request.fields['titre'] = titre;
       request.fields['artisteId'] = user['id'] ?? '';
       request.files.add(await http.MultipartFile.fromPath('audio', filePath));
+      if (coverPath != null) {
+        request.files.add(await http.MultipartFile.fromPath('cover', coverPath));
+      }
 
       final streamed = await request.send();
       final res = await http.Response.fromStream(streamed);

@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../config/constants.dart';
@@ -26,6 +27,7 @@ class _ArtistDashboardScreenState extends State<ArtistDashboardScreen>
   bool _loading = true;
   String _artistName = '';
   String? _artistPhoto;
+  Uint8List? _artistPhotoBytes;
 
   @override
   void initState() {
@@ -137,23 +139,50 @@ class _ArtistDashboardScreenState extends State<ArtistDashboardScreen>
               onPressed: () => Navigator.pop(context),
             ),
           if (!widget.embedded) const SizedBox(width: 8),
-          _artistPhoto != null
-              ? CircleAvatar(
-                  radius: 32,
-                  backgroundImage: NetworkImage(_artistPhoto!),
-                )
-              : CircleAvatar(
-                  radius: 32,
-                  backgroundColor: Color(AppColors.primaryOrange),
-                  child: Text(
-                    _artistName.isNotEmpty ? _artistName[0].toUpperCase() : 'A',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
+          GestureDetector(
+            onTap: _pickProfilePhoto,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                _artistPhotoBytes != null
+                    ? CircleAvatar(
+                        radius: 32,
+                        backgroundImage: MemoryImage(_artistPhotoBytes!),
+                      )
+                    : _artistPhoto != null
+                        ? CircleAvatar(
+                            radius: 32,
+                            backgroundImage: NetworkImage(_artistPhoto!),
+                          )
+                        : CircleAvatar(
+                            radius: 32,
+                            backgroundColor: Color(AppColors.primaryOrange),
+                            child: Text(
+                              _artistName.isNotEmpty ? _artistName[0].toUpperCase() : 'A',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: Color(AppColors.primaryOrange),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.black, width: 1.5),
                     ),
+                    child: const Icon(Icons.camera_alt, size: 11, color: Colors.white),
                   ),
                 ),
+              ],
+            ),
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -198,6 +227,16 @@ class _ArtistDashboardScreenState extends State<ArtistDashboardScreen>
     widget.onLogout?.call();
   }
 
+  Future<void> _pickProfilePhoto() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      withData: true,
+    );
+    if (result != null && result.files.single.bytes != null) {
+      setState(() => _artistPhotoBytes = result.files.single.bytes);
+    }
+  }
+
   // ── Stats Grid ───────────────────────────────────────────────────────────────
 
   Widget _buildStatsGrid() {
@@ -221,59 +260,14 @@ class _ArtistDashboardScreenState extends State<ArtistDashboardScreen>
   Widget _buildFab() {
     return FloatingActionButton(
       backgroundColor: Color(AppColors.primaryOrange),
-      onPressed: _showUploadMenu,
+      onPressed: () {
+        if (_tabController.index == 0) {
+          _showAddMusicSheet();
+        } else {
+          _showAddVideoSheet();
+        }
+      },
       child: const Icon(Icons.add, color: Colors.white),
-    );
-  }
-
-  void _showUploadMenu() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Color(AppColors.surfaceDark),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Que veux-tu ajouter ?',
-              style: TextStyle(
-                  color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            _UploadOption(
-              icon: Icons.music_note,
-              label: 'Ajouter Musique',
-              onTap: () {
-                Navigator.pop(context);
-                _showAddMusicSheet();
-              },
-            ),
-            const SizedBox(height: 12),
-            _UploadOption(
-              icon: Icons.video_call,
-              label: 'Ajouter Vidéo',
-              onTap: () {
-                Navigator.pop(context);
-                _showAddVideoSheet();
-              },
-            ),
-            const SizedBox(height: 12),
-          ],
-        ),
-      ),
     );
   }
 
@@ -284,6 +278,8 @@ class _ArtistDashboardScreenState extends State<ArtistDashboardScreen>
     final formKey = GlobalKey<FormState>();
     String? selectedPath;
     String? selectedName;
+    String? coverPath;
+    String? coverName;
 
     showModalBottomSheet(
       context: context,
@@ -295,138 +291,125 @@ class _ArtistDashboardScreenState extends State<ArtistDashboardScreen>
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSheet) => Padding(
           padding: EdgeInsets.fromLTRB(
-              20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 24),
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(children: [
-                  Icon(Icons.music_note, color: Color(AppColors.primaryOrange), size: 22),
-                  const SizedBox(width: 10),
-                  const Text('Ajouter un morceau',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold)),
-                ]),
-                const SizedBox(height: 20),
-                AppInputField(
-                  controller: titreCtrl,
-                  label: 'Titre du morceau',
-                  icon: Icons.title,
-                  validator: (v) =>
-                      v == null || v.isEmpty ? 'Titre obligatoire' : null,
-                ),
-                const SizedBox(height: 14),
-                GestureDetector(
-                  onTap: () async {
-                    final result = await FilePicker.platform.pickFiles(
-                      type: FileType.audio,
-                    );
-                    if (result != null && result.files.single.path != null) {
-                      setSheet(() {
-                        selectedPath = result.files.single.path;
-                        selectedName = result.files.single.name;
-                      });
-                    }
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Color(AppColors.backgroundBlack),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: selectedPath != null
-                            ? Color(AppColors.primaryOrange)
-                            : Colors.white12,
+              20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
+          child: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          selectedPath != null
-                              ? Icons.audio_file
-                              : Icons.folder_open,
-                          color: selectedPath != null
-                              ? Color(AppColors.primaryOrange)
-                              : Colors.white38,
-                          size: 22,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            selectedName ?? 'Choisir un fichier audio',
-                            style: TextStyle(
-                              color: selectedPath != null
-                                  ? Colors.white
-                                  : Colors.white38,
-                              fontSize: 14,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (selectedPath != null)
-                          Icon(Icons.check_circle,
-                              color: Color(AppColors.primaryOrange), size: 18),
-                      ],
-                    ),
                   ),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(AppColors.primaryOrange),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                    ),
-                    onPressed: () async {
-                      if (!formKey.currentState!.validate()) return;
-                      if (selectedPath == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Choisis un fichier audio'),
-                            backgroundColor: Colors.redAccent,
-                          ),
-                        );
-                        return;
-                      }
-                      Navigator.pop(ctx);
-                      try {
-                        final music = await DashboardService.uploadMusic(
-                          titre: titreCtrl.text.trim(),
-                          filePath: selectedPath!,
-                        );
-                        if (mounted) setState(() => _musics.insert(0, music));
-                        _showSnack('Morceau ajouté !', success: true);
-                      } catch (e) {
-                        _showSnack(e.toString());
-                      }
-                    },
-                    child: const Text('Ajouter',
+                  const SizedBox(height: 20),
+                  Row(children: [
+                    Icon(Icons.music_note, color: Color(AppColors.primaryOrange), size: 22),
+                    const SizedBox(width: 10),
+                    const Text('Ajouter un morceau',
                         style: TextStyle(
                             color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15)),
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold)),
+                  ]),
+                  const SizedBox(height: 20),
+                  AppInputField(
+                    controller: titreCtrl,
+                    label: 'Titre du morceau',
+                    icon: Icons.title,
+                    validator: (v) =>
+                        v == null || v.isEmpty ? 'Titre obligatoire' : null,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 14),
+                  // Audio file picker
+                  GestureDetector(
+                    onTap: () async {
+                      final result = await FilePicker.platform.pickFiles(
+                        type: FileType.audio,
+                      );
+                      if (result != null && result.files.single.path != null) {
+                        setSheet(() {
+                          selectedPath = result.files.single.path;
+                          selectedName = result.files.single.name;
+                        });
+                      }
+                    },
+                    child: _FilePicker(
+                      icon: selectedPath != null ? Icons.audio_file : Icons.folder_open,
+                      label: selectedName ?? 'Choisir un fichier audio',
+                      selected: selectedPath != null,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Cover image picker
+                  GestureDetector(
+                    onTap: () async {
+                      final result = await FilePicker.platform.pickFiles(
+                        type: FileType.image,
+                      );
+                      if (result != null && result.files.single.path != null) {
+                        setSheet(() {
+                          coverPath = result.files.single.path;
+                          coverName = result.files.single.name;
+                        });
+                      }
+                    },
+                    child: _FilePicker(
+                      icon: coverPath != null ? Icons.image : Icons.add_photo_alternate_outlined,
+                      label: coverName ?? 'Ajouter une photo de couverture (optionnel)',
+                      selected: coverPath != null,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(AppColors.primaryOrange),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                      onPressed: () async {
+                        if (!formKey.currentState!.validate()) return;
+                        if (selectedPath == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Choisis un fichier audio'),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                          return;
+                        }
+                        Navigator.pop(ctx);
+                        try {
+                          final music = await DashboardService.uploadMusic(
+                            titre: titreCtrl.text.trim(),
+                            filePath: selectedPath!,
+                            coverPath: coverPath,
+                          );
+                          if (mounted) setState(() => _musics.insert(0, music));
+                          _showSnack('Morceau ajouté !', success: true);
+                        } catch (e) {
+                          _showSnack(e.toString());
+                        }
+                      },
+                      child: const Text('Ajouter',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15)),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -452,138 +435,103 @@ class _ArtistDashboardScreenState extends State<ArtistDashboardScreen>
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSheet) => Padding(
           padding: EdgeInsets.fromLTRB(
-              20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 24),
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(children: [
-                  Icon(Icons.video_call, color: Color(AppColors.primaryOrange), size: 22),
-                  const SizedBox(width: 10),
-                  const Text('Ajouter une vidéo',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold)),
-                ]),
-                const SizedBox(height: 20),
-                AppInputField(
-                  controller: titreCtrl,
-                  label: 'Titre de la vidéo',
-                  icon: Icons.title,
-                  validator: (v) =>
-                      v == null || v.isEmpty ? 'Titre obligatoire' : null,
-                ),
-                const SizedBox(height: 14),
-                GestureDetector(
-                  onTap: () async {
-                    final result = await FilePicker.platform.pickFiles(
-                      type: FileType.video,
-                    );
-                    if (result != null && result.files.single.path != null) {
-                      setSheet(() {
-                        selectedPath = result.files.single.path;
-                        selectedName = result.files.single.name;
-                      });
-                    }
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Color(AppColors.backgroundBlack),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: selectedPath != null
-                            ? Color(AppColors.primaryOrange)
-                            : Colors.white12,
+              20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
+          child: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          selectedPath != null
-                              ? Icons.video_file
-                              : Icons.folder_open,
-                          color: selectedPath != null
-                              ? Color(AppColors.primaryOrange)
-                              : Colors.white38,
-                          size: 22,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            selectedName ?? 'Choisir une vidéo depuis la galerie',
-                            style: TextStyle(
-                              color: selectedPath != null
-                                  ? Colors.white
-                                  : Colors.white38,
-                              fontSize: 14,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (selectedPath != null)
-                          Icon(Icons.check_circle,
-                              color: Color(AppColors.primaryOrange), size: 18),
-                      ],
-                    ),
                   ),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(AppColors.primaryOrange),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                    ),
-                    onPressed: () async {
-                      if (!formKey.currentState!.validate()) return;
-                      if (selectedPath == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Choisis une vidéo'),
-                            backgroundColor: Colors.redAccent,
-                          ),
-                        );
-                        return;
-                      }
-                      Navigator.pop(ctx);
-                      try {
-                        final video = await DashboardService.uploadVideo(
-                          titre: titreCtrl.text.trim(),
-                          filePath: selectedPath!,
-                        );
-                        if (mounted) setState(() => _videos.insert(0, video));
-                        _showSnack('Vidéo ajoutée !', success: true);
-                      } catch (e) {
-                        _showSnack(e.toString());
-                      }
-                    },
-                    child: const Text('Ajouter',
+                  const SizedBox(height: 20),
+                  Row(children: [
+                    Icon(Icons.video_call, color: Color(AppColors.primaryOrange), size: 22),
+                    const SizedBox(width: 10),
+                    const Text('Ajouter une vidéo',
                         style: TextStyle(
                             color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15)),
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold)),
+                  ]),
+                  const SizedBox(height: 20),
+                  AppInputField(
+                    controller: titreCtrl,
+                    label: 'Titre de la vidéo',
+                    icon: Icons.title,
+                    validator: (v) =>
+                        v == null || v.isEmpty ? 'Titre obligatoire' : null,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 14),
+                  GestureDetector(
+                    onTap: () async {
+                      final result = await FilePicker.platform.pickFiles(
+                        type: FileType.video,
+                      );
+                      if (result != null && result.files.single.path != null) {
+                        setSheet(() {
+                          selectedPath = result.files.single.path;
+                          selectedName = result.files.single.name;
+                        });
+                      }
+                    },
+                    child: _FilePicker(
+                      icon: selectedPath != null ? Icons.video_file : Icons.folder_open,
+                      label: selectedName ?? 'Choisir une vidéo depuis la galerie',
+                      selected: selectedPath != null,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(AppColors.primaryOrange),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                      onPressed: () async {
+                        if (!formKey.currentState!.validate()) return;
+                        if (selectedPath == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Choisis une vidéo'),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                          return;
+                        }
+                        Navigator.pop(ctx);
+                        try {
+                          final video = await DashboardService.uploadVideo(
+                            titre: titreCtrl.text.trim(),
+                            filePath: selectedPath!,
+                          );
+                          if (mounted) setState(() => _videos.insert(0, video));
+                          _showSnack('Vidéo ajoutée !', success: true);
+                        } catch (e) {
+                          _showSnack(e.toString());
+                        }
+                      },
+                      child: const Text('Ajouter',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15)),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -604,9 +552,9 @@ class _ArtistDashboardScreenState extends State<ArtistDashboardScreen>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => Padding(
+      builder: (ctx) => Padding(
         padding: EdgeInsets.fromLTRB(
-            20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 24),
+            20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
         child: Form(
           key: formKey,
           child: Column(
@@ -908,7 +856,7 @@ class _VideoThumbnail extends StatelessWidget {
             ),
           ),
           Positioned(
-            bottom: 0,
+            bottom: 0,  
             left: 0,
             right: 0,
             child: Container(
@@ -971,48 +919,47 @@ class _VideoThumbnail extends StatelessWidget {
   }
 }
 
-// ── Upload Option ─────────────────────────────────────────────────────────────
+// ── File Picker Row ───────────────────────────────────────────────────────────
 
-class _UploadOption extends StatelessWidget {
+class _FilePicker extends StatelessWidget {
   final IconData icon;
   final String label;
-  final VoidCallback onTap;
+  final bool selected;
 
-  const _UploadOption(
-      {required this.icon, required this.label, required this.onTap});
+  const _FilePicker({required this.icon, required this.label, required this.selected});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-        decoration: BoxDecoration(
-          color: Color(AppColors.backgroundBlack),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white10),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Color(AppColors.backgroundBlack),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: selected ? Color(AppColors.primaryOrange) : Colors.white12,
         ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Color(AppColors.primaryOrange).withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(icon,
+              color: selected ? Color(AppColors.primaryOrange) : Colors.white38,
+              size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : Colors.white38,
+                fontSize: 14,
               ),
-              child: Icon(icon, color: Color(AppColors.primaryOrange), size: 22),
+              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(width: 16),
-            Text(label,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600)),
-            const Spacer(),
-            Icon(Icons.arrow_forward_ios,
-                color: Color(AppColors.textGrey), size: 14),
-          ],
-        ),
+          ),
+          if (selected)
+            Icon(Icons.check_circle,
+                color: Color(AppColors.primaryOrange), size: 18),
+        ],
       ),
     );
   }
