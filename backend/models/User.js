@@ -10,10 +10,9 @@ const userSchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      unique: true,
-      sparse: true,         // plusieurs null autorisés dans l'index unique
       lowercase: true,
       trim: true,
+      default: null,
       validate: {
         validator: (v) => !v || /^\S+@\S+\.\S+$/.test(v),
         message: 'Email invalide',
@@ -21,9 +20,8 @@ const userSchema = new mongoose.Schema(
     },
     telephone: {
       type: String,
-      unique: true,
-      sparse: true,
       trim: true,
+      default: null,
     },
     motDePasse: {
       type: String,
@@ -33,15 +31,7 @@ const userSchema = new mongoose.Schema(
     },
     photoProfil: { type: String, default: null },
   },
-  { timestamps: true }
+  { timestamps: true, autoIndex: false }
 );
-
-// Au moins email ou telephone requis
-userSchema.pre('validate', function (next) {
-  if (!this.email && !this.telephone) {
-    this.invalidate('email', 'Email ou numéro de téléphone requis.');
-  }
-  next();
-});
 
 module.exports = mongoose.model('User', userSchema);
