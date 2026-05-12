@@ -16,36 +16,20 @@ class _MusicScreenState extends State<MusicScreen>
   bool _loading = true;
   String? _error;
   String _query = '';
-  int _categoryIndex = 0; // 0 = Chansons, 1 = Artistes
   late TabController _tabController;
-
   final TextEditingController _searchCtrl = TextEditingController();
-  final AudioPlayer _player = AudioPlayer();
-  String? _playingId;
-  bool _isPlaying = false;
-  MusicModel? _currentTrack;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() {
-      if (mounted) setState(() => _categoryIndex = _tabController.index);
-    });
     _load();
-    _player.onPlayerStateChanged.listen((state) {
-      if (mounted) setState(() => _isPlaying = state == PlayerState.playing);
-    });
-    _player.onPlayerComplete.listen((_) {
-      if (mounted) setState(() { _playingId = null; _isPlaying = false; });
-    });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     _searchCtrl.dispose();
-    _player.dispose();
     super.dispose();
   }
 
@@ -61,20 +45,7 @@ class _MusicScreenState extends State<MusicScreen>
     }
   }
 
-  Future<void> _togglePlay(MusicModel track) async {
-    if (_playingId == track.id && _isPlaying) {
-      await _player.pause();
-      return;
-    }
-    if (_playingId == track.id && !_isPlaying) {
-      await _player.resume();
-      return;
-    }
-    setState(() { _playingId = track.id; _currentTrack = track; });
-    await _player.play(UrlSource(track.audioUrl));
-  }
-
-  List<MusicModel> get _filtered {
+  List<MusicModel> get _filteredSongs {
     final q = _query.trim().toLowerCase();
     if (q.isEmpty) return _tracks;
     return _tracks.where((t) =>
@@ -89,7 +60,7 @@ class _MusicScreenState extends State<MusicScreen>
     return artists.where((a) => a.toLowerCase().contains(q)).toList();
   }
 
-  List<MusicModel> tracksForArtist(String artistId) =>
+  List<MusicModel> _tracksForArtist(String artistId) =>
       _tracks.where((t) => t.artisteId == artistId).toList();
 
   @override
@@ -99,30 +70,11 @@ class _MusicScreenState extends State<MusicScreen>
       body: SafeArea(
         child: Column(
           children: [
-            // ── Header ──────────────────────────────────────────────────────
             _buildHeader(),
-
-            // ── Search bar ──────────────────────────────────────────────────
             _buildSearchBar(),
             const SizedBox(height: 8),
-
-            // ── Onglets Chansons / Artistes ──────────────────────────────────
             _buildTabBar(),
-
-            // ── Contenu ──────────────────────────────────────────────────────
             Expanded(child: _buildContent()),
-
-            // ── Mini player ──────────────────────────────────────────────────
-            if (_playingId != null && _currentTrack != null)
-              _MiniPlayer(
-                track: _currentTrack!,
-                isPlaying: _isPlaying,
-                onToggle: () => _togglePlay(_currentTrack!),
-                onClose: () async {
-                  await _player.stop();
-                  setState(() { _playingId = null; _currentTrack = null; });
-                },
-              ),
           ],
         ),
       ),
@@ -219,18 +171,18 @@ class _MusicScreenState extends State<MusicScreen>
     if (_error != null) {
       return _ErrorWidget(message: _error!, onRetry: _load);
     }
-    if (_categoryIndex == 0) {
-      return _buildSongsGrid();
-    } else {
-      return _buildArtistsList();
-    }
+    return TabBarView(
+      controller: _tabController,
+      children: [
+        _buildSongsGrid(),
+        _buildArtistsList(),
+      ],
+    );
   }
 
-  // ── Grille des chansons ──────────────────────────────────────────────────────
-
   Widget _buildSongsGrid() {
-    final tracks = _filtered;
-    if (tracks.isEmpty) {
+    final songs = _filteredSongs;
+    if (songs.isEmpty) {
       return const Center(
         child: Text('Aucun résultat', style: TextStyle(color: Colors.white38)),
       );
@@ -243,21 +195,25 @@ class _MusicScreenState extends State<MusicScreen>
         mainAxisSpacing: 10,
         childAspectRatio: 0.78,
       ),
-      itemCount: tracks.length,
+      itemCount: songs.length,
       itemBuilder: (_, i) {
-        final t = tracks[i];
-        final isActive = _playingId == t.id;
+        final t = songs[i];
         return _SongCard(
           track: t,
-          isActive: isActive,
-          isPlaying: isActive && _isPlaying,
-          onTap: () => _togglePlay(t),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PlayerScreen(
+                track: t,
+                playlist: songs,
+                initialIndex: i,
+              ),
+            ),
+          ),
         );
       },
     );
   }
-
-  // ── Liste des artistes ───────────────────────────────────────────────────────
 
   Widget _buildArtistsList() {
     final artists = _uniqueArtists;
@@ -271,33 +227,32 @@ class _MusicScreenState extends State<MusicScreen>
       itemCount: artists.length,
       itemBuilder: (_, i) {
         final artistId = artists[i];
-        final songs = tracksForArtist(artistId);
+        final songs = _tracksForArtist(artistId);
         return _ArtistRow(
           artistId: artistId,
           songs: songs,
-          playingId: _playingId,
-          isPlaying: _isPlaying,
-          onTap: (track) => _togglePlay(track),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => _ArtistSongsPage(
+                artistId: artistId,
+                songs: songs,
+              ),
+            ),
+          ),
         );
       },
     );
   }
 }
 
-// ── Song Card ─────────────────────────────────────────────────────────────────
+// ── Song Card (clean, sans icône play) ────────────────────────────────────────
 
 class _SongCard extends StatelessWidget {
   final MusicModel track;
-  final bool isActive;
-  final bool isPlaying;
   final VoidCallback onTap;
 
-  const _SongCard({
-    required this.track,
-    required this.isActive,
-    required this.isPlaying,
-    required this.onTap,
-  });
+  const _SongCard({required this.track, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -307,57 +262,24 @@ class _SongCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFF1C1C1C),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isActive ? Colors.orange : Colors.white10,
-            width: isActive ? 1.5 : 1,
-          ),
+          border: Border.all(color: Colors.white10),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Cover
             Expanded(
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    track.coverImg != null
-                        ? Image.network(track.coverImg!, fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _CoverPlaceholder())
-                        : _CoverPlaceholder(),
-                    // Overlay lecture
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.5),
-                          ],
-                        ),
-                      ),
-                    ),
-                    // Icône play/pause
-                    Center(
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        child: Icon(
-                          isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill,
-                          key: ValueKey(isPlaying),
-                          size: 44,
-                          color: isActive
-                              ? Colors.orange
-                              : Colors.white.withValues(alpha: 0.7),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                child: track.coverImg != null
+                    ? Image.network(
+                        track.coverImg!,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        errorBuilder: (_, __, ___) => _CoverPlaceholder(),
+                      )
+                    : _CoverPlaceholder(),
               ),
             ),
-            // Infos
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
               child: Column(
@@ -365,8 +287,8 @@ class _SongCard extends StatelessWidget {
                 children: [
                   Text(
                     track.titre,
-                    style: TextStyle(
-                      color: isActive ? Colors.orange : Colors.white,
+                    style: const TextStyle(
+                      color: Colors.white,
                       fontWeight: FontWeight.w600,
                       fontSize: 13,
                     ),
@@ -390,6 +312,502 @@ class _SongCard extends StatelessWidget {
   }
 }
 
+// ── Artist Row ────────────────────────────────────────────────────────────────
+
+class _ArtistRow extends StatelessWidget {
+  final String artistId;
+  final List<MusicModel> songs;
+  final VoidCallback onTap;
+
+  const _ArtistRow({
+    required this.artistId,
+    required this.songs,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = artistId.isNotEmpty ? artistId[0].toUpperCase() : 'A';
+    final coverImg = songs.isNotEmpty ? songs.first.coverImg : null;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141414),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 28,
+              backgroundColor: Colors.orange,
+              backgroundImage: coverImg != null ? NetworkImage(coverImg) : null,
+              child: coverImg == null
+                  ? Text(
+                      initial,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                      ),
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    artistId,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${songs.length} morceau${songs.length > 1 ? 'x' : ''}',
+                    style: const TextStyle(color: Colors.white38, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.white24, size: 22),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Artist Songs Page ─────────────────────────────────────────────────────────
+
+class _ArtistSongsPage extends StatelessWidget {
+  final String artistId;
+  final List<MusicModel> songs;
+
+  const _ArtistSongsPage({required this.artistId, required this.songs});
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = artistId.isNotEmpty ? artistId[0].toUpperCase() : 'A';
+    final coverImg = songs.isNotEmpty ? songs.first.coverImg : null;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A0A),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF141414),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Row(
+          children: [
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: Colors.orange,
+              backgroundImage: coverImg != null ? NetworkImage(coverImg) : null,
+              child: coverImg == null
+                  ? Text(initial,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13))
+                  : null,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    artistId,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    '${songs.length} morceau${songs.length > 1 ? 'x' : ''}',
+                    style: const TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: songs.length,
+        itemBuilder: (_, i) {
+          final song = songs[i];
+          return _SongListTile(
+            track: song,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PlayerScreen(
+                  track: song,
+                  playlist: songs,
+                  initialIndex: i,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ── Song List Tile ─────────────────────────────────────────────────────────────
+
+class _SongListTile extends StatelessWidget {
+  final MusicModel track;
+  final VoidCallback onTap;
+
+  const _SongListTile({required this.track, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1C1C1C),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                width: 52,
+                height: 52,
+                child: track.coverImg != null
+                    ? Image.network(
+                        track.coverImg!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _CoverPlaceholder(),
+                      )
+                    : _CoverPlaceholder(),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    track.titre,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    track.artisteId,
+                    style: const TextStyle(color: Colors.white38, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.play_circle_outline, color: Colors.orange, size: 28),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Player Screen ─────────────────────────────────────────────────────────────
+
+class PlayerScreen extends StatefulWidget {
+  final MusicModel track;
+  final List<MusicModel> playlist;
+  final int initialIndex;
+
+  const PlayerScreen({
+    super.key,
+    required this.track,
+    required this.playlist,
+    required this.initialIndex,
+  });
+
+  @override
+  State<PlayerScreen> createState() => _PlayerScreenState();
+}
+
+class _PlayerScreenState extends State<PlayerScreen> {
+  late final AudioPlayer _player;
+  late MusicModel _current;
+  late int _currentIndex;
+  bool _isPlaying = false;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _player = AudioPlayer();
+    _current = widget.track;
+    _currentIndex = widget.initialIndex;
+
+    _player.onPlayerStateChanged.listen((s) {
+      if (mounted) setState(() => _isPlaying = s == PlayerState.playing);
+    });
+    _player.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _position = p);
+    });
+    _player.onDurationChanged.listen((d) {
+      if (mounted) setState(() => _duration = d);
+    });
+    _player.onPlayerComplete.listen((_) => _playNext());
+
+    _playTrack(_current);
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  Future<void> _playTrack(MusicModel track) async {
+    setState(() {
+      _current = track;
+      _position = Duration.zero;
+      _duration = Duration.zero;
+    });
+    await _player.play(UrlSource(track.audioUrl));
+  }
+
+  Future<void> _togglePlay() async {
+    _isPlaying ? await _player.pause() : await _player.resume();
+  }
+
+  void _playNext() {
+    if (_currentIndex < widget.playlist.length - 1) {
+      _currentIndex++;
+      _playTrack(widget.playlist[_currentIndex]);
+    }
+  }
+
+  void _playPrev() {
+    if (_position.inSeconds > 3) {
+      _player.seek(Duration.zero);
+      return;
+    }
+    if (_currentIndex > 0) {
+      _currentIndex--;
+      _playTrack(widget.playlist[_currentIndex]);
+    }
+  }
+
+  String _fmt(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasPrev = _currentIndex > 0;
+    final hasNext = _currentIndex < widget.playlist.length - 1;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A0A),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ── Top bar ─────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.keyboard_arrow_down,
+                        color: Colors.white, size: 30),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  const Spacer(),
+                  const Text('Lecture en cours',
+                      style: TextStyle(color: Colors.white70, fontSize: 13)),
+                  const Spacer(),
+                  const SizedBox(width: 48),
+                ],
+              ),
+            ),
+
+            // ── Cover ─────────────────────────────────────────────────────────
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: _current.coverImg != null
+                      ? Image.network(
+                          _current.coverImg!,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          errorBuilder: (_, __, ___) => _CoverPlaceholder(),
+                        )
+                      : _CoverPlaceholder(),
+                ),
+              ),
+            ),
+
+            // ── Infos ──────────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _current.titre,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _current.artisteId,
+                          style: const TextStyle(
+                              color: Colors.white54, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.favorite_border,
+                      color: Colors.white24, size: 24),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // ── Progress ──────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                children: [
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: Colors.orange,
+                      inactiveTrackColor: Colors.white12,
+                      thumbColor: Colors.orange,
+                      overlayColor: Colors.orange.withValues(alpha: 0.2),
+                      thumbShape:
+                          const RoundSliderThumbShape(enabledThumbRadius: 6),
+                      trackHeight: 3,
+                    ),
+                    child: Slider(
+                      value: _duration.inSeconds > 0
+                          ? _position.inSeconds
+                              .toDouble()
+                              .clamp(0.0, _duration.inSeconds.toDouble())
+                          : 0.0,
+                      max: _duration.inSeconds > 0
+                          ? _duration.inSeconds.toDouble()
+                          : 1.0,
+                      onChanged: (v) =>
+                          _player.seek(Duration(seconds: v.toInt())),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(_fmt(_position),
+                            style: const TextStyle(
+                                color: Colors.white38, fontSize: 11)),
+                        Text(_fmt(_duration),
+                            style: const TextStyle(
+                                color: Colors.white38, fontSize: 11)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Controls ──────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(32, 8, 32, 32),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.skip_previous_rounded,
+                        color: hasPrev ? Colors.white : Colors.white24,
+                        size: 40),
+                    onPressed: hasPrev ? _playPrev : null,
+                  ),
+                  GestureDetector(
+                    onTap: _togglePlay,
+                    child: Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: Colors.orange,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.orange.withValues(alpha: 0.4),
+                            blurRadius: 20,
+                            spreadRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        _isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 40,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.skip_next_rounded,
+                        color: hasNext ? Colors.white : Colors.white24,
+                        size: 40),
+                    onPressed: hasNext ? _playNext : null,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Cover Placeholder ─────────────────────────────────────────────────────────
+
 class _CoverPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -401,214 +819,14 @@ class _CoverPlaceholder extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
       ),
-      child: const Icon(Icons.music_note, color: Colors.orange, size: 36),
-    );
-  }
-}
-
-// ── Artist Row ────────────────────────────────────────────────────────────────
-
-class _ArtistRow extends StatelessWidget {
-  final String artistId;
-  final List<MusicModel> songs;
-  final String? playingId;
-  final bool isPlaying;
-  final void Function(MusicModel) onTap;
-
-  const _ArtistRow({
-    required this.artistId,
-    required this.songs,
-    required this.playingId,
-    required this.isPlaying,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final initial = artistId.isNotEmpty ? artistId[0].toUpperCase() : 'A';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141414),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Entête artiste
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: Colors.orange,
-                  child: Text(initial,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16)),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(artistId,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14)),
-                      Text('${songs.length} morceau${songs.length > 1 ? 'x' : ''}',
-                          style: const TextStyle(
-                              color: Colors.white38, fontSize: 11)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Miniatures des chansons en scroll horizontal
-          SizedBox(
-            height: 80,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              itemCount: songs.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (_, i) {
-                final s = songs[i];
-                final active = playingId == s.id;
-                return GestureDetector(
-                  onTap: () => onTap(s),
-                  child: Container(
-                    width: 64,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: active ? Colors.orange : Colors.white10,
-                      ),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(9),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          s.coverImg != null
-                              ? Image.network(s.coverImg!, fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) =>
-                                      _CoverPlaceholder())
-                              : _CoverPlaceholder(),
-                          Center(
-                            child: Icon(
-                              active && isPlaying
-                                  ? Icons.pause_circle_filled
-                                  : Icons.play_circle_fill,
-                              color: Colors.white.withValues(alpha: 0.85),
-                              size: 22,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+      child: const Center(
+        child: Icon(Icons.music_note, color: Colors.orange, size: 36),
       ),
     );
   }
 }
 
-// ── Mini Player ───────────────────────────────────────────────────────────────
-
-class _MiniPlayer extends StatelessWidget {
-  final MusicModel track;
-  final bool isPlaying;
-  final VoidCallback onToggle;
-  final VoidCallback onClose;
-
-  const _MiniPlayer({
-    required this.track,
-    required this.isPlaying,
-    required this.onToggle,
-    required this.onClose,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 68,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1C1C1C),
-        border: Border(top: BorderSide(color: Colors.orange.withValues(alpha: 0.5))),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.5),
-            blurRadius: 12,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Cover
-          ClipRRect(
-            child: Container(
-              width: 68,
-              height: 68,
-              child: track.coverImg != null
-                  ? Image.network(track.coverImg!, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _CoverPlaceholder())
-                  : _CoverPlaceholder(),
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Titre + artiste
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  track.titre,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(track.artisteId,
-                    style: const TextStyle(color: Colors.white38, fontSize: 11)),
-              ],
-            ),
-          ),
-          // Play/pause
-          IconButton(
-            icon: Icon(
-              isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill,
-              color: Colors.orange,
-              size: 36,
-            ),
-            onPressed: onToggle,
-          ),
-          // Fermer
-          IconButton(
-            icon: const Icon(Icons.close, color: Colors.white38, size: 20),
-            onPressed: onClose,
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
-    );
-  }
-}
+// ── Error Widget ──────────────────────────────────────────────────────────────
 
 class _ErrorWidget extends StatelessWidget {
   final String message;
@@ -629,9 +847,10 @@ class _ErrorWidget extends StatelessWidget {
               textAlign: TextAlign.center),
           const SizedBox(height: 16),
           TextButton(
-              onPressed: onRetry,
-              child: const Text('Réessayer',
-                  style: TextStyle(color: Colors.orange))),
+            onPressed: onRetry,
+            child: const Text('Réessayer',
+                style: TextStyle(color: Colors.orange)),
+          ),
         ],
       ),
     );

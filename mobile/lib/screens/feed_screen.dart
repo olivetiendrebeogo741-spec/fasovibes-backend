@@ -14,6 +14,7 @@ class _FeedScreenState extends State<FeedScreen> {
   List<VideoModel> _videos = [];
   bool _loading = true;
   String? _error;
+  final Set<String> _likedIds = {};
 
   @override
   void initState() {
@@ -34,31 +35,24 @@ class _FeedScreenState extends State<FeedScreen> {
   }
 
   Future<void> _onLike(int index) async {
+    final vid = _videos[index];
+    if (_likedIds.contains(vid.id)) return;
     try {
-      final updated = await VideoService.like(_videos[index].id);
-      if (mounted) setState(() => _videos[index] = updated);
+      final updated = await VideoService.like(vid.id);
+      if (mounted) {
+        setState(() {
+          _videos[index] = updated;
+          _likedIds.add(vid.id);
+        });
+      }
     } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
     return Scaffold(
       backgroundColor: Colors.black,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        title: const Text(
-          'FasoVibes',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
-        ),
-        systemOverlayStyle: SystemUiOverlayStyle.light,
-      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: Colors.orange))
           : _error != null
@@ -70,6 +64,7 @@ class _FeedScreenState extends State<FeedScreen> {
                       itemCount: _videos.length,
                       itemBuilder: (context, index) => _VideoCard(
                         video: _videos[index],
+                        isLiked: _likedIds.contains(_videos[index].id),
                         onLike: () => _onLike(index),
                       ),
                     ),
@@ -79,9 +74,10 @@ class _FeedScreenState extends State<FeedScreen> {
 
 class _VideoCard extends StatelessWidget {
   final VideoModel video;
+  final bool isLiked;
   final VoidCallback onLike;
 
-  const _VideoCard({required this.video, required this.onLike});
+  const _VideoCard({required this.video, required this.isLiked, required this.onLike});
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +88,7 @@ class _VideoCard extends StatelessWidget {
       color: Colors.black,
       child: Stack(
         children: [
-          // Placeholder vidéo (fond)
+          // Vidéo placeholder
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -106,7 +102,7 @@ class _VideoCard extends StatelessWidget {
             ),
           ),
 
-          // Dégradé bas pour lisibilité texte
+          // Dégradé bas
           Positioned(
             bottom: 0,
             left: 0,
@@ -123,7 +119,7 @@ class _VideoCard extends StatelessWidget {
             ),
           ),
 
-          // Infos vidéo (bas gauche)
+          // Infos vidéo bas gauche
           Positioned(
             bottom: 90,
             left: 16,
@@ -177,20 +173,17 @@ class _VideoCard extends StatelessWidget {
             right: 12,
             child: Column(
               children: [
-                // Avatar artiste avec bouton +
                 _SidebarAvatar(initial: artistInitial),
                 const SizedBox(height: 24),
 
-                // Like
                 _SidebarAction(
                   icon: Icons.favorite,
                   label: '${video.likes}',
                   onTap: onLike,
-                  color: Colors.white,
+                  color: isLiked ? Colors.orange : Colors.white,
                 ),
                 const SizedBox(height: 20),
 
-                // Commentaires
                 _SidebarAction(
                   icon: Icons.chat_bubble_rounded,
                   label: '${video.commentaires.length}',
@@ -199,11 +192,10 @@ class _VideoCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
 
-                // Partager
                 _SidebarAction(
                   icon: Icons.share_rounded,
                   label: 'Partager',
-                  onTap: () => _share(video),
+                  onTap: () {},
                   color: Colors.white,
                 ),
               ],
@@ -212,10 +204,6 @@ class _VideoCard extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  void _share(VideoModel video) {
-    // Implémentation partage natif possible via share_plus
   }
 }
 
