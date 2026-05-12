@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const videoController = require('../controllers/videoController');
 const authenticate = require('../middleware/authenticate');
+const { uploadVideo } = require('../middleware/upload');
 
 /**
  * @openapi
@@ -58,7 +59,7 @@ router.get('/:id', videoController.getOne);
  *       201:
  *         description: Vidéo créée
  */
-router.post('/', authenticate, videoController.create);
+router.post('/', authenticate, uploadVideo.single('video'), videoController.create);
 
 /**
  * @openapi

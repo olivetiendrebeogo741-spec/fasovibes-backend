@@ -24,4 +24,5 @@ class StorageKeys {
   static const String userId = 'user_id';
   static const String userNom = 'user_nom';
   static const String userEmail = 'user_email';
+  static const String userPhone = 'user_phone';
 }

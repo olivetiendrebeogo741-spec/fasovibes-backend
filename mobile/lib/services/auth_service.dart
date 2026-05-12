@@ -8,20 +8,23 @@ import 'storage_service.dart';
 class AuthService {
   static Future<UserModel> register({
     required String nom,
-    required String email,
+    required String identifier,
     required String motDePasse,
   }) async {
     try {
       final res = await http.post(
         Uri.parse('${ApiConstants.baseUrl}${ApiConstants.register}'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'nom': nom, 'email': email, 'motDePasse': motDePasse}),
+        body: jsonEncode({'nom': nom, 'identifier': identifier, 'motDePasse': motDePasse}),
       );
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       if (res.statusCode == 201) {
         return UserModel.fromJson(data['data'] ?? data);
       }
-      throw AppException(data['message'] ?? 'Erreur lors de l\'inscription.', statusCode: res.statusCode);
+      throw AppException(
+        data['message'] ?? 'Erreur lors de l\'inscription.',
+        statusCode: res.statusCode,
+      );
     } on AppException {
       rethrow;
     } catch (_) {
@@ -30,14 +33,14 @@ class AuthService {
   }
 
   static Future<UserModel> login({
-    required String email,
+    required String identifier,
     required String motDePasse,
   }) async {
     try {
       final res = await http.post(
         Uri.parse('${ApiConstants.baseUrl}${ApiConstants.login}'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'motDePasse': motDePasse}),
+        body: jsonEncode({'identifier': identifier, 'motDePasse': motDePasse}),
       );
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       if (res.statusCode == 200) {
@@ -45,11 +48,21 @@ class AuthService {
         final token = userData['token'] as String;
         final user = UserModel.fromJson(userData['user'] as Map<String, dynamic>);
         await StorageService.saveToken(token);
-        await StorageService.saveUser(id: user.id, nom: user.nom, email: user.email);
+        await StorageService.saveUser(
+          id: user.id,
+          nom: user.nom,
+          email: user.email,
+          telephone: user.telephone,
+        );
         return user;
       }
-      if (res.statusCode == 401) throw const UnauthorizedException('Email ou mot de passe incorrect.');
-      throw AppException(data['message'] ?? 'Erreur lors de la connexion.', statusCode: res.statusCode);
+      if (res.statusCode == 401) {
+        throw const UnauthorizedException('Identifiant ou mot de passe incorrect.');
+      }
+      throw AppException(
+        data['message'] ?? 'Erreur lors de la connexion.',
+        statusCode: res.statusCode,
+      );
     } on AppException {
       rethrow;
     } catch (_) {

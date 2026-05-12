@@ -15,12 +15,14 @@ class StorageService {
   static Future<void> saveUser({
     required String id,
     required String nom,
-    required String email,
+    String? email,
+    String? telephone,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(StorageKeys.userId, id);
     await prefs.setString(StorageKeys.userNom, nom);
-    await prefs.setString(StorageKeys.userEmail, email);
+    if (email != null) await prefs.setString(StorageKeys.userEmail, email);
+    if (telephone != null) await prefs.setString(StorageKeys.userPhone, telephone);
   }
 
   static Future<Map<String, String?>> getUser() async {
@@ -29,6 +31,7 @@ class StorageService {
       'id': prefs.getString(StorageKeys.userId),
       'nom': prefs.getString(StorageKeys.userNom),
       'email': prefs.getString(StorageKeys.userEmail),
+      'telephone': prefs.getString(StorageKeys.userPhone),
     };
   }
 

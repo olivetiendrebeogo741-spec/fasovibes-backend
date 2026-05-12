@@ -19,9 +19,6 @@ class FasoVibesApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFF0A0A0A),
       ),
       home: const _SplashGate(),
-      routes: {
-        '/home': (_) => const MainNavigation(),
-      },
     );
   }
 }
@@ -45,14 +42,12 @@ class _SplashGateState extends State<_SplashGate> {
     if (!mounted) return;
     final loggedIn = await StorageService.isLoggedIn();
     if (!mounted) return;
-    if (loggedIn) {
-      Navigator.pushReplacementNamed(context, '/home');
-    } else {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const MainNavigation()),
-      );
-    }
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MainNavigation(initialIndex: loggedIn ? 2 : 0),
+      ),
+    );
   }
 
   @override
@@ -65,14 +60,21 @@ class _SplashGateState extends State<_SplashGate> {
 }
 
 class MainNavigation extends StatefulWidget {
-  const MainNavigation({super.key});
+  final int initialIndex;
+  const MainNavigation({super.key, this.initialIndex = 0});
 
   @override
   State<MainNavigation> createState() => _MainNavigationState();
 }
 
 class _MainNavigationState extends State<MainNavigation> {
-  int _currentIndex = 0;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+  }
 
   final List<Widget> _screens = const [
     FeedScreen(),

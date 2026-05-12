@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const musicController = require('../controllers/musicController');
 const authenticate = require('../middleware/authenticate');
+const { uploadAudio } = require('../middleware/upload');
 
 /**
  * @openapi
@@ -60,7 +61,7 @@ router.get('/:id', musicController.getOne);
  *       201:
  *         description: Morceau créé
  */
-router.post('/', authenticate, musicController.create);
+router.post('/', authenticate, uploadAudio.single('audio'), musicController.create);
 
 /**
  * @openapi

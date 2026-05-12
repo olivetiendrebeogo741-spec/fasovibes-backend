@@ -5,30 +5,62 @@ const AppError = require('../utils/AppError');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fasovibes_secret_key';
 
-const signToken = (id, email) =>
-  jwt.sign({ id, email }, JWT_SECRET, { expiresIn: '7d' });
+const signToken = (id) =>
+  jwt.sign({ id }, JWT_SECRET, { expiresIn: '7d' });
 
-exports.register = async ({ nom, email, motDePasse }) => {
-  const existing = await User.findOne({ email });
-  if (existing) throw new AppError('Cet email est déjà utilisé.', 400);
+const isEmail = (str) => str.includes('@');
+
+// Build the search/create field from the identifier (email or phone)
+const identifierField = (identifier) =>
+  isEmail(identifier)
+    ? { email: identifier.toLowerCase().trim() }
+    : { telephone: identifier.trim() };
+
+exports.register = async ({ nom, identifier, motDePasse }) => {
+  if (!identifier) throw new AppError('Email ou numéro de téléphone requis.', 400);
+
+  const field = identifierField(identifier);
+  const existing = await User.findOne(field);
+  if (existing) {
+    throw new AppError(
+      isEmail(identifier)
+        ? 'Cet email est déjà utilisé.'
+        : 'Ce numéro est déjà utilisé.',
+      400
+    );
+  }
 
   const hash = await bcrypt.hash(motDePasse, 12);
-  const user = await User.create({ nom, email, motDePasse: hash });
+  const user = await User.create({ nom, motDePasse: hash, ...field });
 
-  return { userId: user._id, nom: user.nom, email: user.email };
+  return {
+    userId: user._id,
+    nom: user.nom,
+    email: user.email || null,
+    telephone: user.telephone || null,
+  };
 };
 
-exports.login = async ({ email, motDePasse }) => {
-  const user = await User.findOne({ email }).select('+motDePasse');
-  if (!user) throw new AppError('Email ou mot de passe incorrect.', 401);
+exports.login = async ({ identifier, motDePasse }) => {
+  if (!identifier) throw new AppError('Email ou numéro de téléphone requis.', 400);
+
+  const field = identifierField(identifier);
+  const user = await User.findOne(field).select('+motDePasse');
+  if (!user) throw new AppError('Identifiant ou mot de passe incorrect.', 401);
 
   const valid = await bcrypt.compare(motDePasse, user.motDePasse);
-  if (!valid) throw new AppError('Email ou mot de passe incorrect.', 401);
+  if (!valid) throw new AppError('Identifiant ou mot de passe incorrect.', 401);
 
-  const token = signToken(user._id, user.email);
+  const token = signToken(user._id);
 
   return {
     token,
-    user: { id: user._id, nom: user.nom, email: user.email, photoProfil: user.photoProfil },
+    user: {
+      id: user._id,
+      nom: user.nom,
+      email: user.email || null,
+      telephone: user.telephone || null,
+      photoProfil: user.photoProfil,
+    },
   };
 };

@@ -20,7 +20,11 @@ exports.getOne = async (req, res, next) => {
 
 exports.create = async (req, res, next) => {
   try {
-    const track = await musicService.create(req.body);
+    const baseUrl = process.env.BASE_URL || 'https://fasovibes-backend.onrender.com';
+    const audioUrl = req.file
+      ? `${baseUrl}/uploads/audio/${req.file.filename}`
+      : req.body.audioUrl;
+    const track = await musicService.create({ ...req.body, audioUrl });
     res.status(201).json({ status: 'success', data: track });
   } catch (err) {
     next(err);

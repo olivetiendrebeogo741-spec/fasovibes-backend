@@ -7,13 +7,7 @@ import '../utils/app_exception.dart';
 import 'storage_service.dart';
 
 class DashboardService {
-  static Future<Map<String, String>> _authHeaders() async {
-    final token = await StorageService.getToken();
-    return {
-      'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
-  }
+  static Future<String?> _token() => StorageService.getToken();
 
   static Future<List<MusicModel>> getMyMusic() async {
     try {
@@ -30,7 +24,8 @@ class DashboardService {
             .where((m) => m.artisteId == userId || m.artisteId.contains(userId))
             .toList();
       }
-      throw AppException('Impossible de charger vos musiques.', statusCode: res.statusCode);
+      throw AppException('Impossible de charger vos musiques.',
+          statusCode: res.statusCode);
     } on AppException {
       rethrow;
     } catch (_) {
@@ -53,7 +48,8 @@ class DashboardService {
             .where((v) => v.artisteId == userId || v.artisteId.contains(userId))
             .toList();
       }
-      throw AppException('Impossible de charger vos vidéos.', statusCode: res.statusCode);
+      throw AppException('Impossible de charger vos vidéos.',
+          statusCode: res.statusCode);
     } on AppException {
       rethrow;
     } catch (_) {
@@ -63,28 +59,31 @@ class DashboardService {
 
   static Future<MusicModel> uploadMusic({
     required String titre,
-    required String audioUrl,
-    String? coverImg,
+    required String filePath,
   }) async {
     try {
-      final headers = await _authHeaders();
+      final token = await _token();
       final user = await StorageService.getUser();
-      final res = await http.post(
+
+      final request = http.MultipartRequest(
+        'POST',
         Uri.parse('${ApiConstants.baseUrl}${ApiConstants.music}'),
-        headers: headers,
-        body: jsonEncode({
-          'titre': titre,
-          'artisteId': user['id'],
-          'audioUrl': audioUrl,
-          if (coverImg != null && coverImg.isNotEmpty) 'coverImg': coverImg,
-        }),
       );
+      if (token != null) request.headers['Authorization'] = 'Bearer $token';
+      request.fields['titre'] = titre;
+      request.fields['artisteId'] = user['id'] ?? '';
+      request.files.add(await http.MultipartFile.fromPath('audio', filePath));
+
+      final streamed = await request.send();
+      final res = await http.Response.fromStream(streamed);
+
       if (res.statusCode == 201) {
         final body = jsonDecode(res.body);
         return MusicModel.fromJson(body['data'] ?? body);
       }
       if (res.statusCode == 401) throw const UnauthorizedException();
-      throw AppException('Erreur lors de l\'upload.', statusCode: res.statusCode);
+      throw AppException('Erreur lors de l\'upload.',
+          statusCode: res.statusCode);
     } on AppException {
       rethrow;
     } catch (_) {
@@ -94,26 +93,31 @@ class DashboardService {
 
   static Future<VideoModel> uploadVideo({
     required String titre,
-    required String videoUrl,
+    required String filePath,
   }) async {
     try {
-      final headers = await _authHeaders();
+      final token = await _token();
       final user = await StorageService.getUser();
-      final res = await http.post(
+
+      final request = http.MultipartRequest(
+        'POST',
         Uri.parse('${ApiConstants.baseUrl}${ApiConstants.videos}'),
-        headers: headers,
-        body: jsonEncode({
-          'titre': titre,
-          'artisteId': user['id'],
-          'videoUrl': videoUrl,
-        }),
       );
+      if (token != null) request.headers['Authorization'] = 'Bearer $token';
+      request.fields['titre'] = titre;
+      request.fields['artisteId'] = user['id'] ?? '';
+      request.files.add(await http.MultipartFile.fromPath('video', filePath));
+
+      final streamed = await request.send();
+      final res = await http.Response.fromStream(streamed);
+
       if (res.statusCode == 201) {
         final body = jsonDecode(res.body);
         return VideoModel.fromJson(body['data'] ?? body);
       }
       if (res.statusCode == 401) throw const UnauthorizedException();
-      throw AppException('Erreur lors de l\'upload.', statusCode: res.statusCode);
+      throw AppException('Erreur lors de l\'upload.',
+          statusCode: res.statusCode);
     } on AppException {
       rethrow;
     } catch (_) {
@@ -123,14 +127,15 @@ class DashboardService {
 
   static Future<void> deleteMusic(String id) async {
     try {
-      final headers = await _authHeaders();
+      final token = await _token();
       final res = await http.delete(
         Uri.parse('${ApiConstants.baseUrl}${ApiConstants.music}/$id'),
-        headers: headers,
+        headers: {if (token != null) 'Authorization': 'Bearer $token'},
       );
       if (res.statusCode == 401) throw const UnauthorizedException();
       if (res.statusCode != 204) {
-        throw AppException('Impossible de supprimer ce morceau.', statusCode: res.statusCode);
+        throw AppException('Impossible de supprimer ce morceau.',
+            statusCode: res.statusCode);
       }
     } on AppException {
       rethrow;
@@ -141,14 +146,15 @@ class DashboardService {
 
   static Future<void> deleteVideo(String id) async {
     try {
-      final headers = await _authHeaders();
+      final token = await _token();
       final res = await http.delete(
         Uri.parse('${ApiConstants.baseUrl}${ApiConstants.videos}/$id'),
-        headers: headers,
+        headers: {if (token != null) 'Authorization': 'Bearer $token'},
       );
       if (res.statusCode == 401) throw const UnauthorizedException();
       if (res.statusCode != 204) {
-        throw AppException('Impossible de supprimer cette vidéo.', statusCode: res.statusCode);
+        throw AppException('Impossible de supprimer cette vidéo.',
+            statusCode: res.statusCode);
       }
     } on AppException {
       rethrow;

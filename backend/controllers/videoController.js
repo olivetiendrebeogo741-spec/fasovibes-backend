@@ -20,7 +20,11 @@ exports.getOne = async (req, res, next) => {
 
 exports.create = async (req, res, next) => {
   try {
-    const video = await videoService.create(req.body);
+    const baseUrl = process.env.BASE_URL || 'https://fasovibes-backend.onrender.com';
+    const videoUrl = req.file
+      ? `${baseUrl}/uploads/video/${req.file.filename}`
+      : req.body.videoUrl;
+    const video = await videoService.create({ ...req.body, videoUrl });
     res.status(201).json({ status: 'success', data: video });
   } catch (err) {
     next(err);
