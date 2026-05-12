@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../services/storage_service.dart';
 import 'auth/login_screen.dart';
 import 'auth/register_screen.dart';
+import 'artist_dashboard_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -13,7 +15,7 @@ class ProfileScreen extends StatelessWidget {
         child: Column(
           children: [
             Expanded(child: _HeroSection()),
-            _BottomActions(context),
+            const _BottomActions(),
             const SizedBox(height: 32),
           ],
         ),
@@ -151,10 +153,23 @@ class _FeatureBadge extends StatelessWidget {
   }
 }
 
-class _BottomActions extends StatelessWidget {
-  final BuildContext context;
+class _BottomActions extends StatefulWidget {
+  const _BottomActions();
 
-  const _BottomActions(this.context);
+  @override
+  State<_BottomActions> createState() => _BottomActionsState();
+}
+
+class _BottomActionsState extends State<_BottomActions> {
+  bool _loggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    StorageService.isLoggedIn().then((v) {
+      if (mounted) setState(() => _loggedIn = v);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -162,90 +177,128 @@ class _BottomActions extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 28),
       child: Column(
         children: [
-          // Bouton principal : Créer un compte
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFF8C00), Color(0xFFFF4500)],
+          if (_loggedIn) ...[
+            // Bouton Dashboard Artiste
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF8C00), Color(0xFFFF4500)],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.orange.withValues(alpha: 0.35),
+                      blurRadius: 20,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.orange.withValues(alpha: 0.35),
-                    blurRadius: 20,
-                    offset: const Offset(0, 6),
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                ],
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ArtistDashboardScreen()),
+                  ),
+                  icon: const Icon(Icons.dashboard, color: Colors.white, size: 20),
+                  label: const Text(
+                    'Mon Dashboard',
+                    style: TextStyle(color: Colors.white, fontSize: 16,
+                        fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                  ),
+                ),
               ),
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.white24, width: 1.5),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                onPressed: () async {
+                  await StorageService.clear();
+                  if (context.mounted) setState(() => _loggedIn = false);
+                },
+                icon: const Icon(Icons.logout, color: Colors.white54, size: 18),
+                label: const Text('Se déconnecter',
+                    style: TextStyle(color: Colors.white54, fontSize: 14)),
+              ),
+            ),
+          ] else ...[
+            // Bouton principal : Créer un compte
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF8C00), Color(0xFFFF4500)],
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.orange.withValues(alpha: 0.35),
+                      blurRadius: 20,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                  ),
+                  icon: const Icon(Icons.person_add, color: Colors.white, size: 20),
+                  label: const Text(
+                    'Créer un compte',
+                    style: TextStyle(color: Colors.white, fontSize: 16,
+                        fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.white24, width: 1.5),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
                 onPressed: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
                 ),
-                icon: const Icon(Icons.person_add, color: Colors.white, size: 20),
+                icon: const Icon(Icons.login, color: Colors.white70, size: 20),
                 label: const Text(
-                  'Créer un compte',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                  ),
+                  'Se connecter',
+                  style: TextStyle(color: Colors.white70, fontSize: 16,
+                      fontWeight: FontWeight.w600, letterSpacing: 0.5),
                 ),
               ),
             ),
-          ),
-
-          const SizedBox(height: 14),
-
-          // Bouton secondaire : Se connecter
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.white24, width: 1.5),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-              ),
-              icon: const Icon(Icons.login, color: Colors.white70, size: 20),
-              label: const Text(
-                'Se connecter',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-          ),
+          ],
 
           const SizedBox(height: 20),
-
-          // Mention légale
           Text(
             'En continuant, tu acceptes nos conditions d\'utilisation.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.2),
-              fontSize: 11,
-            ),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.2), fontSize: 11),
           ),
         ],
       ),
