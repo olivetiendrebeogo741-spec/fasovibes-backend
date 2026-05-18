@@ -41,6 +41,17 @@ exports.register = async ({ nom, identifier, motDePasse }) => {
   };
 };
 
+exports.updateProfile = async (userId, { nom, bio, genre }) => {
+  const updates = {};
+  if (nom && nom.trim()) updates.nom = nom.trim();
+  if (bio !== undefined) updates.bio = bio?.trim() || null;
+  if (genre !== undefined) updates.genre = genre?.trim() || null;
+
+  const user = await User.findByIdAndUpdate(userId, updates, { new: true });
+  if (!user) throw new AppError('Utilisateur introuvable.', 404);
+  return { id: user._id, nom: user.nom, bio: user.bio, genre: user.genre };
+};
+
 exports.login = async ({ identifier, motDePasse }) => {
   if (!identifier) throw new AppError('Email ou numéro de téléphone requis.', 400);
 

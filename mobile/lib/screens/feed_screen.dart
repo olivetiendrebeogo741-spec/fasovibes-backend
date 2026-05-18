@@ -7,6 +7,7 @@ import '../models/video.dart';
 import '../services/artiste_service.dart';
 import '../services/storage_service.dart';
 import '../services/video_service.dart';
+import '../widgets/shimmer_placeholders.dart';
 import 'artist_profile_screen.dart';
 
 class FeedScreen extends StatefulWidget {
@@ -71,8 +72,7 @@ class _FeedScreenState extends State<FeedScreen> {
         children: [
           // Contenu principal
           _loading
-              ? const Center(
-                  child: CircularProgressIndicator(color: Colors.orange))
+              ? const ShimmerFeed()
               : _error != null
                   ? _ErrorState(message: _error!, onRetry: _load)
                   : _videos.isEmpty
@@ -774,8 +774,7 @@ class _ArtistSearchScreenState extends State<_ArtistSearchScreen> {
           // Résultats
           Expanded(
             child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(color: Colors.orange))
+                ? const ShimmerSearchList()
                 : _loadError != null
                     ? Center(
                         child: Column(

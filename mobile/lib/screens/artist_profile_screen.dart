@@ -8,6 +8,7 @@ import '../models/music.dart';
 import '../models/video.dart';
 import '../services/artiste_service.dart';
 import '../services/music_service.dart';
+import '../widgets/shimmer_placeholders.dart';
 import '../services/video_service.dart';
 
 String _url(String path) {
@@ -105,8 +106,7 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen>
     return Scaffold(
       backgroundColor: Color(AppColors.backgroundBlack),
       body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(color: Colors.orange))
+          ? const ShimmerArtistProfile()
           : NestedScrollView(
               headerSliverBuilder: (_, __) => [
                 SliverToBoxAdapter(child: _buildHeader()),

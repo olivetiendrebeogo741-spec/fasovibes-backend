@@ -166,4 +166,31 @@ class DashboardService {
       throw const NetworkException();
     }
   }
+
+  static Future<void> updateProfile({
+    required String nom,
+    String? bio,
+    String? genre,
+  }) async {
+    try {
+      final token = await _token();
+      final res = await http.patch(
+        Uri.parse('${ApiConstants.baseUrl}/auth/me'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'nom': nom, 'bio': bio, 'genre': genre}),
+      );
+      if (res.statusCode == 401) throw const UnauthorizedException();
+      if (res.statusCode != 200) {
+        throw AppException('Impossible de mettre à jour le profil.',
+            statusCode: res.statusCode);
+      }
+    } on AppException {
+      rethrow;
+    } catch (_) {
+      throw const NetworkException();
+    }
+  }
 }

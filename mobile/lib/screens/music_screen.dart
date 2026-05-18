@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:shimmer/shimmer.dart';
 import '../config/constants.dart';
 import '../models/artiste.dart';
 import '../models/music.dart';
@@ -174,8 +175,7 @@ class _MusicScreenState extends State<MusicScreen> {
           child: SizedBox(
             height: 155,
             child: _loadingTracks
-                ? const Center(child: CircularProgressIndicator(
-                    color: Colors.orange, strokeWidth: 2))
+                ? _ShimmerArtistes()
                 : artistes.isEmpty
                     ? const Center(
                         child: Text('Aucun artiste',
@@ -206,30 +206,31 @@ class _MusicScreenState extends State<MusicScreen> {
           title: 'Albums et singles populaires',
           trailing: _loadingTracks ? '' : '${tracks.length} titres',
         ),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 220,
-            child: _loadingTracks
-                ? const Center(child: CircularProgressIndicator(
-                    color: Colors.orange, strokeWidth: 2))
-                : _errorTracks != null
-                    ? Center(
-                        child: TextButton.icon(
-                          onPressed: _loadTracks,
-                          icon: const Icon(Icons.refresh, color: Colors.orange),
-                          label: const Text('Réessayer',
-                              style: TextStyle(color: Colors.orange)),
+        _loadingTracks
+            ? SliverToBoxAdapter(child: _ShimmerAlbums())
+            : _errorTracks != null
+                ? SliverToBoxAdapter(
+                    child: Center(
+                      child: TextButton.icon(
+                        onPressed: _loadTracks,
+                        icon: const Icon(Icons.refresh, color: Colors.orange),
+                        label: const Text('Réessayer',
+                            style: TextStyle(color: Colors.orange)),
+                      ),
+                    ),
+                  )
+                : tracks.isEmpty
+                    ? const SliverFillRemaining(
+                        child: Center(
+                          child: Text('Aucun morceau',
+                              style: TextStyle(color: Colors.white38)),
                         ),
                       )
-                    : tracks.isEmpty
-                        ? const Center(
-                            child: Text('Aucun morceau',
-                                style: TextStyle(color: Colors.white38)))
-                        : ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                            itemCount: tracks.length,
-                            itemBuilder: (_, i) {
+                    : SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+                        sliver: SliverGrid(
+                          delegate: SliverChildBuilderDelegate(
+                            (_, i) {
                               final t = tracks[i];
                               return _AlbumCard(
                                 track: t,
@@ -245,9 +246,17 @@ class _MusicScreenState extends State<MusicScreen> {
                                 ),
                               );
                             },
+                            childCount: tracks.length,
                           ),
-          ),
-        ),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 0.82,
+                          ),
+                        ),
+                      ),
       ],
     );
   }
@@ -401,47 +410,40 @@ class _AlbumCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: 150,
-        margin: const EdgeInsets.only(right: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: SizedBox(
-                width: 150,
-                height: 150,
-                child: track.coverImg != null
-                    ? Image.network(
-                        track.coverImg!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            const _CoverPlaceholder(),
-                      )
-                    : const _CoverPlaceholder(),
-              ),
+              child: track.coverImg != null
+                  ? Image.network(
+                      track.coverImg!,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      errorBuilder: (_, __, ___) => const _CoverPlaceholder(),
+                    )
+                  : const _CoverPlaceholder(),
             ),
-            const SizedBox(height: 8),
-            Text(
-              track.titre,
-              style: TextStyle(
-                color: Color(AppColors.textWhite),
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            track.titre,
+            style: TextStyle(
+              color: Color(AppColors.textWhite),
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
             ),
-            const SizedBox(height: 2),
-            Text(
-              track.artisteId,
-              style: const TextStyle(color: Colors.white38, fontSize: 12),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            track.artisteId,
+            style: const TextStyle(color: Colors.white38, fontSize: 11),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
@@ -1073,6 +1075,123 @@ class _PlayerScreenState extends State<PlayerScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Shimmer — Artistes (cercles horizontaux)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ShimmerArtistes extends StatelessWidget {
+  const _ShimmerArtistes();
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF2A2A2A),
+      highlightColor: const Color(0xFF3D3D3D),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: 5,
+        itemBuilder: (_, __) => Container(
+          width: 110,
+          margin: const EdgeInsets.only(right: 20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 104,
+                height: 104,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: 70,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                width: 48,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Shimmer — Albums (grille 2 colonnes)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ShimmerAlbums extends StatelessWidget {
+  const _ShimmerAlbums();
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF2A2A2A),
+      highlightColor: const Color(0xFF3D3D3D),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+        child: GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: 6,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 0.82,
+          ),
+          itemBuilder: (_, __) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                width: 80,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

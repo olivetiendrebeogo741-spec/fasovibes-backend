@@ -30,6 +30,8 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
     photoProfil: { type: String, default: null },
+    bio: { type: String, maxlength: [500, 'La bio ne peut pas dépasser 500 caractères'], default: null },
+    genre: { type: String, maxlength: [50, 'Le genre ne peut pas dépasser 50 caractères'], default: null },
   },
   { timestamps: true, autoIndex: false }
 );

@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:video_player/video_player.dart';
+import 'package:share_plus/share_plus.dart';
 import '../config/constants.dart';
 import '../models/music.dart';
 import '../models/video.dart';
 import '../services/dashboard_service.dart';
 import '../services/storage_service.dart';
+import '../widgets/shimmer_placeholders.dart';
 import '../widgets/app_input_field.dart';
 
 String _fullUrl(String url) {
@@ -33,6 +35,8 @@ class _ArtistDashboardScreenState extends State<ArtistDashboardScreen>
   List<VideoModel> _videos = [];
   bool _loading = true;
   String _artistName = '';
+  String _artistBio = '';
+  String _artistGenre = '';
   String? _artistPhoto;
   Uint8List? _artistPhotoBytes;
 
@@ -59,7 +63,9 @@ class _ArtistDashboardScreenState extends State<ArtistDashboardScreen>
       ]);
       if (mounted) {
         setState(() {
-          _artistName = user['nom'] ?? 'Artiste';
+          _artistName  = user['nom']    ?? 'Artiste';
+          _artistBio   = user['bio']    ?? '';
+          _artistGenre = user['genre']  ?? '';
           _musics = results[0] as List<MusicModel>;
           _videos = results[1] as List<VideoModel>;
         });
@@ -70,7 +76,10 @@ class _ArtistDashboardScreenState extends State<ArtistDashboardScreen>
     }
   }
 
-  int get _totalLikes => _videos.fold(0, (sum, v) => sum + v.likes);
+  int get _totalLikes    => _videos.fold(0, (sum, v) => sum + v.likes);
+  int get _totalStreams  => _musics.fold(0, (sum, m) => sum + m.streams);
+  MusicModel? get _topMorceau => _musics.isEmpty ? null
+      : _musics.reduce((a, b) => a.streams >= b.streams ? a : b);
 
   @override
   Widget build(BuildContext context) {
@@ -78,11 +87,12 @@ class _ArtistDashboardScreenState extends State<ArtistDashboardScreen>
       backgroundColor: Color(AppColors.backgroundBlack),
       floatingActionButton: _buildFab(),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: Colors.orange))
+          ? const ShimmerDashboard()
           : NestedScrollView(
               headerSliverBuilder: (_, __) => [
                 SliverToBoxAdapter(child: _buildHeader()),
                 SliverToBoxAdapter(child: _buildStatsGrid()),
+                SliverToBoxAdapter(child: _buildTopMorceau()),
                 SliverPersistentHeader(
                   pinned: true,
                   delegate: _TabBarDelegate(
@@ -216,6 +226,16 @@ class _ArtistDashboardScreenState extends State<ArtistDashboardScreen>
             ),
           ),
           IconButton(
+            icon: const Icon(Icons.edit_outlined, color: Colors.white54, size: 20),
+            onPressed: _showEditProfileSheet,
+            tooltip: 'Modifier le profil',
+          ),
+          IconButton(
+            icon: const Icon(Icons.share_outlined, color: Colors.white54, size: 20),
+            onPressed: _shareProfile,
+            tooltip: 'Partager',
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white54),
             onPressed: _load,
           ),
@@ -244,22 +264,219 @@ class _ArtistDashboardScreenState extends State<ArtistDashboardScreen>
     }
   }
 
+  Future<void> _shareProfile() async {
+    final count = _musics.length;
+    final s = count > 1 ? 's' : '';
+    await Share.share(
+      'Découvrez $_artistName sur FasoVibes !\n$count morceau$s disponible$s.',
+      subject: '$_artistName sur FasoVibes',
+    );
+  }
+
+  void _showEditProfileSheet() {
+    final nomCtrl    = TextEditingController(text: _artistName);
+    final bioCtrl    = TextEditingController(text: _artistBio);
+    final genreCtrl  = TextEditingController(text: _artistGenre);
+    final formKey    = GlobalKey<FormState>();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Color(AppColors.surfaceDark),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+            20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
+        child: SingleChildScrollView(
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(children: [
+                  Icon(Icons.person_outline,
+                      color: Color(AppColors.primaryOrange), size: 22),
+                  const SizedBox(width: 10),
+                  const Text('Modifier le profil',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold)),
+                ]),
+                const SizedBox(height: 20),
+                AppInputField(
+                  controller: nomCtrl,
+                  label: 'Nom',
+                  icon: Icons.badge_outlined,
+                  validator: (v) =>
+                      v == null || v.trim().isEmpty ? 'Nom obligatoire' : null,
+                ),
+                const SizedBox(height: 12),
+                AppInputField(
+                  controller: bioCtrl,
+                  label: 'Bio (optionnel)',
+                  icon: Icons.info_outline,
+                ),
+                const SizedBox(height: 12),
+                AppInputField(
+                  controller: genreCtrl,
+                  label: 'Genre musical (optionnel)',
+                  icon: Icons.queue_music,
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(AppColors.primaryOrange),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                    onPressed: () async {
+                      if (!formKey.currentState!.validate()) return;
+                      Navigator.pop(ctx);
+                      try {
+                        final nom   = nomCtrl.text.trim();
+                        final bio   = bioCtrl.text.trim().isEmpty
+                            ? null : bioCtrl.text.trim();
+                        final genre = genreCtrl.text.trim().isEmpty
+                            ? null : genreCtrl.text.trim();
+                        await DashboardService.updateProfile(
+                            nom: nom, bio: bio, genre: genre);
+                        if (mounted) {
+                          setState(() {
+                            _artistName  = nom;
+                            _artistBio   = bio   ?? '';
+                            _artistGenre = genre ?? '';
+                          });
+                        }
+                        _showSnack('Profil mis à jour !', success: true);
+                      } catch (e) {
+                        _showSnack(e.toString());
+                      }
+                    },
+                    child: const Text('Enregistrer',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // ── Stats Grid ───────────────────────────────────────────────────────────────
 
   Widget _buildStatsGrid() {
     return Container(
       color: Color(AppColors.backgroundBlack),
-      padding: const EdgeInsets.all(16),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: GridView.count(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.5,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
         children: [
-          _StatCard(icon: Icons.music_note, value: '${_musics.length}', label: 'Titres'),
-          const SizedBox(width: 12),
+          _StatCard(icon: Icons.music_note,       value: '${_musics.length}', label: 'Titres'),
           _StatCard(icon: Icons.video_collection, value: '${_videos.length}', label: 'Vidéos'),
-          const SizedBox(width: 12),
-          _StatCard(icon: Icons.favorite, value: '$_totalLikes', label: 'Likes Totaux'),
+          _StatCard(icon: Icons.favorite,         value: '$_totalLikes',      label: 'Likes totaux'),
+          _StatCard(icon: Icons.headphones,       value: _fmtCount(_totalStreams), label: 'Écoutes totales'),
         ],
       ),
     );
+  }
+
+  Widget _buildTopMorceau() {
+    final top = _topMorceau;
+    if (top == null) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Color(AppColors.surfaceDark),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Color(AppColors.primaryOrange).withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: SizedBox(
+              width: 52,
+              height: 52,
+              child: top.coverImg != null
+                  ? Image.network(_fullUrl(top.coverImg!), fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _CoverPlaceholder())
+                  : _CoverPlaceholder(),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.emoji_events_rounded,
+                        color: Color(AppColors.primaryOrange), size: 14),
+                    const SizedBox(width: 5),
+                    Text('Top morceau',
+                        style: TextStyle(
+                            color: Color(AppColors.primaryOrange),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600)),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(top.titre,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    const Icon(Icons.headphones, size: 12, color: Colors.white38),
+                    const SizedBox(width: 4),
+                    Text(_fmtCount(top.streams),
+                        style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _fmtCount(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(0)}K';
+    return '$n';
   }
 
   // ── FAB ───────────────────────────────────────────────────────────────────────
@@ -692,28 +909,27 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-        decoration: BoxDecoration(
-          color: Color(AppColors.surfaceDark),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white10),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: Color(AppColors.primaryOrange), size: 22),
-            const SizedBox(height: 8),
-            Text(value,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text(label,
-                style: TextStyle(color: Color(AppColors.textGrey), fontSize: 11)),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+      decoration: BoxDecoration(
+        color: Color(AppColors.surfaceDark),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: Color(AppColors.primaryOrange), size: 20),
+          const SizedBox(height: 6),
+          Text(value,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(height: 3),
+          Text(label,
+              style: TextStyle(color: Color(AppColors.textGrey), fontSize: 11)),
+        ],
       ),
     );
   }
@@ -1336,6 +1552,23 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Cover Placeholder ─────────────────────────────────────────────────────────
+
+class _CoverPlaceholder extends StatelessWidget {
+  const _CoverPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Color(AppColors.backgroundBlack),
+      child: Center(
+        child: Icon(Icons.music_note,
+            color: Color(AppColors.primaryOrange), size: 24),
       ),
     );
   }

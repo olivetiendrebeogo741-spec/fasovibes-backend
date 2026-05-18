@@ -54,4 +54,31 @@ router.post('/register', authController.register);
  */
 router.post('/login', authController.login);
 
+/**
+ * @openapi
+ * /auth/me:
+ *   patch:
+ *     summary: Mettre à jour le profil (authentification requise)
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               nom:
+ *                 type: string
+ *               bio:
+ *                 type: string
+ *               genre:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Profil mis à jour
+ */
+const authenticate = require('../middleware/authenticate');
+router.patch('/me', authenticate, authController.updateProfile);
+
 module.exports = router;
