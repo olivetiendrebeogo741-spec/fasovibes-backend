@@ -82,4 +82,40 @@ router.post('/', authenticate, uploadMusicFiles, musicController.create);
  */
 router.delete('/:id', authenticate, musicController.remove);
 
+/**
+ * @openapi
+ * /music/{id}/stream:
+ *   post:
+ *     summary: Incrémenter le compteur d'écoutes d'un morceau
+ *     tags:
+ *       - Music
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du morceau
+ *     responses:
+ *       200:
+ *         description: Compteur incrémenté avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     streams:
+ *                       type: integer
+ *                       example: 42
+ *       404:
+ *         description: Morceau introuvable
+ */
+router.post('/:id/stream', musicController.stream);
+
 module.exports = router;

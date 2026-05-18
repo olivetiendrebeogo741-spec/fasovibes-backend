@@ -44,3 +44,12 @@ exports.remove = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.stream = async (req, res, next) => {
+  try {
+    const track = await musicService.stream(req.params.id);
+    res.status(200).json({ status: 'success', data: { streams: track.streams } });
+  } catch (err) {
+    next(err);
+  }
+};

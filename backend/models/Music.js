@@ -18,6 +18,7 @@ const musicSchema = new mongoose.Schema(
       required: [true, "L'URL audio est obligatoire"],
     },
     coverImg: { type: String, default: null },
+    streams: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

@@ -20,3 +20,13 @@ exports.remove = async (id) => {
   const track = await Music.findByIdAndDelete(id);
   if (!track) throw new AppError('Morceau introuvable.', 404);
 };
+
+exports.stream = async (id) => {
+  const track = await Music.findByIdAndUpdate(
+    id,
+    { $inc: { streams: 1 } },
+    { new: true }
+  );
+  if (!track) throw new AppError('Morceau introuvable.', 404);
+  return track;
+};
