@@ -265,6 +265,16 @@ class _MusicScreenState extends State<MusicScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+String _fmtStreams(int n) {
+  if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M écoutes';
+  if (n >= 1000) return '${(n / 1000).toStringAsFixed(0)}K écoutes';
+  return '$n écoute${n > 1 ? 's' : ''}';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  Section Header Sliver
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -422,6 +432,20 @@ class _AlbumCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          if (track.streams > 0)
+            Padding(
+              padding: const EdgeInsets.only(left: 2, top: 1),
+              child: Row(
+                children: [
+                  const Icon(Icons.headphones, size: 10, color: Colors.white24),
+                  const SizedBox(width: 3),
+                  Text(
+                    _fmtStreams(track.streams),
+                    style: const TextStyle(color: Colors.white24, fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -719,6 +743,19 @@ class _SongTile extends StatelessWidget {
                     track.artisteId,
                     style: const TextStyle(color: Colors.white38, fontSize: 12),
                   ),
+                  if (track.streams > 0)
+                    Row(
+                      children: [
+                        const Icon(Icons.headphones,
+                            size: 11, color: Colors.white24),
+                        const SizedBox(width: 3),
+                        Text(
+                          _fmtStreams(track.streams),
+                          style: const TextStyle(
+                              color: Colors.white24, fontSize: 11),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),
@@ -758,6 +795,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool _isPlaying = false;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
+  late List<MusicModel> _playlist;
 
   @override
   void initState() {
@@ -765,6 +803,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _player = AudioPlayer();
     _current = widget.track;
     _currentIndex = widget.initialIndex;
+    _playlist = List<MusicModel>.from(widget.playlist);
 
     _player.onPlayerStateChanged.listen((s) {
       if (mounted) setState(() => _isPlaying = s == PlayerState.playing);
@@ -793,6 +832,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _duration = Duration.zero;
     });
     await _player.play(UrlSource(track.audioUrl));
+    // Incrémenter le compteur d'écoutes
+    final newCount = await MusicService.stream(track.id);
+    if (mounted && newCount > 0) {
+      setState(() {
+        _current = _current.copyWith(streams: newCount);
+        _playlist[_currentIndex] = _current;
+      });
+    }
   }
 
   Future<void> _togglePlay() async {
@@ -800,9 +847,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   void _playNext() {
-    if (_currentIndex < widget.playlist.length - 1) {
+    if (_currentIndex < _playlist.length - 1) {
       _currentIndex++;
-      _playTrack(widget.playlist[_currentIndex]);
+      _playTrack(_playlist[_currentIndex]);
     }
   }
 
@@ -813,7 +860,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
     if (_currentIndex > 0) {
       _currentIndex--;
-      _playTrack(widget.playlist[_currentIndex]);
+      _playTrack(_playlist[_currentIndex]);
     }
   }
 
@@ -826,7 +873,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final hasPrev = _currentIndex > 0;
-    final hasNext = _currentIndex < widget.playlist.length - 1;
+    final hasNext = _currentIndex < _playlist.length - 1;
 
     return Scaffold(
       backgroundColor: Color(AppColors.backgroundBlack),
@@ -896,6 +943,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         Text(_current.artisteId,
                             style: const TextStyle(
                                 color: Colors.white54, fontSize: 14)),
+                        if (_current.streams > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.headphones,
+                                    size: 13, color: Colors.white38),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _fmtStreams(_current.streams),
+                                  style: const TextStyle(
+                                      color: Colors.white38, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
                       ],
                     ),
                   ),

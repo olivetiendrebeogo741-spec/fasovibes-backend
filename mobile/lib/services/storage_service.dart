@@ -44,4 +44,14 @@ class StorageService {
     final token = await getToken();
     return token != null && token.isNotEmpty;
   }
+
+  static Future<void> saveLikedVideoIds(Set<String> ids) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('liked_video_ids', ids.toList());
+  }
+
+  static Future<Set<String>> getLikedVideoIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    return (prefs.getStringList('liked_video_ids') ?? []).toSet();
+  }
 }

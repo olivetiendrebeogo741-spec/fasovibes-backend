@@ -20,17 +20,21 @@ class VideoModel {
   final String id;
   final String titre;
   final String artisteId;
+  final String artisteRealId;
   final String videoUrl;
   final int likes;
   final List<CommentaireModel> commentaires;
+  final DateTime createdAt;
 
   const VideoModel({
     required this.id,
     required this.titre,
     required this.artisteId,
+    required this.artisteRealId,
     required this.videoUrl,
     required this.likes,
     required this.commentaires,
+    required this.createdAt,
   });
 
   factory VideoModel.fromJson(Map<String, dynamic> json) => VideoModel(
@@ -39,19 +43,28 @@ class VideoModel {
         artisteId: json['artisteId'] is Map
             ? json['artisteId']['nom'] ?? ''
             : json['artisteId'] ?? '',
+        artisteRealId: json['artisteId'] is Map
+            ? (json['artisteId']['_id'] ?? '').toString()
+            : (json['artisteId'] ?? '').toString(),
         videoUrl: json['videoUrl'] ?? '',
         likes: json['likes'] ?? 0,
         commentaires: (json['commentaires'] as List<dynamic>? ?? [])
             .map((c) => CommentaireModel.fromJson(c as Map<String, dynamic>))
             .toList(),
+        createdAt: json['createdAt'] != null
+            ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
+            : DateTime.now(),
       );
 
-  VideoModel copyWith({int? likes}) => VideoModel(
+  VideoModel copyWith({int? likes, List<CommentaireModel>? commentaires}) =>
+      VideoModel(
         id: id,
         titre: titre,
         artisteId: artisteId,
+        artisteRealId: artisteRealId,
         videoUrl: videoUrl,
         likes: likes ?? this.likes,
-        commentaires: commentaires,
+        commentaires: commentaires ?? this.commentaires,
+        createdAt: createdAt,
       );
 }

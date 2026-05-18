@@ -1,12 +1,19 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:video_player/video_player.dart';
 import '../config/constants.dart';
 import '../models/music.dart';
 import '../models/video.dart';
 import '../services/dashboard_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/app_input_field.dart';
+
+String _fullUrl(String url) {
+  if (url.startsWith('http')) return url;
+  return 'https://fasovibes-backend.onrender.com$url';
+}
 
 class ArtistDashboardScreen extends StatefulWidget {
   final bool embedded;
@@ -737,55 +744,323 @@ class _MusicTab extends StatelessWidget {
         ),
       );
     }
-    return ListView.builder(
+    return GridView.builder(
       padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 3 / 4,
+      ),
       itemCount: musics.length,
-      itemBuilder: (_, i) {
-        final music = musics[i];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          decoration: BoxDecoration(
-            color: Color(AppColors.surfaceDark),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white10),
-          ),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Color(AppColors.primaryOrange),
-              backgroundImage:
-                  music.coverImg != null ? NetworkImage(music.coverImg!) : null,
-              child: music.coverImg == null
-                  ? const Icon(Icons.music_note, color: Colors.white, size: 18)
-                  : null,
+      itemBuilder: (_, i) => _MusicCard(
+        music: musics[i],
+        onDelete: onDelete,
+        onEdit: onEdit,
+      ),
+    );
+  }
+}
+
+class _MusicCard extends StatelessWidget {
+  final MusicModel music;
+  final void Function(String id) onDelete;
+  final void Function(MusicModel music) onEdit;
+
+  const _MusicCard(
+      {required this.music, required this.onDelete, required this.onEdit});
+
+  void _openPlayer(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _AudioPlayerSheet(music: music),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _openPlayer(context),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Color(AppColors.surfaceDark),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: music.coverImg != null
+                  ? Image.network(
+                      _fullUrl(music.coverImg!),
+                      width: double.infinity,
+                      height: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _coverPlaceholder(),
+                    )
+                  : _coverPlaceholder(),
             ),
-            title: Text(music.titre,
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.w600),
-                overflow: TextOverflow.ellipsis),
-            subtitle: Text(music.audioUrl,
-                style: TextStyle(
-                    color: Color(AppColors.textGrey), fontSize: 11),
-                overflow: TextOverflow.ellipsis),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
+            // Gradient + titre en bas
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  borderRadius:
+                      const BorderRadius.vertical(bottom: Radius.circular(14)),
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.9),
+                      Colors.transparent
+                    ],
+                  ),
+                ),
+                child: Text(
+                  music.titre,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            // Bouton play centré
+            Center(
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                    color: Colors.black45, shape: BoxShape.circle),
+                child: const Icon(Icons.play_arrow,
+                    color: Colors.white, size: 28),
+              ),
+            ),
+            // Boutons edit / delete en haut à droite
+            Positioned(
+              top: 4,
+              right: 4,
+              child: Column(
+                children: [
+                  _ActionBtn(
+                    icon: Icons.edit_outlined,
+                    color: Color(AppColors.primaryOrange),
+                    onTap: () => onEdit(music),
+                  ),
+                  const SizedBox(height: 4),
+                  _ActionBtn(
+                    icon: Icons.delete_outline,
+                    color: Colors.redAccent,
+                    onTap: () => onDelete(music.id),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _coverPlaceholder() => Container(
+        color: Color(AppColors.surfaceDark),
+        child: Center(
+          child: Icon(Icons.music_note,
+              color: Color(AppColors.primaryOrange), size: 48),
+        ),
+      );
+}
+
+// ── Action Button ─────────────────────────────────────────────────────────────
+
+class _ActionBtn extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ActionBtn(
+      {required this.icon, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+            color: Colors.black54, borderRadius: BorderRadius.circular(8)),
+        child: Icon(icon, color: color, size: 16),
+      ),
+    );
+  }
+}
+
+// ── Audio Player Sheet ────────────────────────────────────────────────────────
+
+class _AudioPlayerSheet extends StatefulWidget {
+  final MusicModel music;
+  const _AudioPlayerSheet({required this.music});
+
+  @override
+  State<_AudioPlayerSheet> createState() => _AudioPlayerSheetState();
+}
+
+class _AudioPlayerSheetState extends State<_AudioPlayerSheet> {
+  late AudioPlayer _player;
+  bool _playing = false;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _player = AudioPlayer();
+    _player.onPlayerStateChanged.listen((s) {
+      if (mounted) setState(() => _playing = s == PlayerState.playing);
+    });
+    _player.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _position = p);
+    });
+    _player.onDurationChanged.listen((d) {
+      if (mounted) setState(() => _duration = d);
+    });
+    _player.play(UrlSource(_fullUrl(widget.music.audioUrl)));
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  String _fmt(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = _duration.inMilliseconds > 0
+        ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0)
+        : 0.0;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+      decoration: BoxDecoration(
+        color: Color(AppColors.surfaceDark),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2)),
+          ),
+          const SizedBox(height: 20),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: widget.music.coverImg != null
+                ? Image.network(
+                    _fullUrl(widget.music.coverImg!),
+                    width: 120,
+                    height: 120,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _coverPlaceholder(),
+                  )
+                : _coverPlaceholder(),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            widget.music.titre,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          Slider(
+            value: progress.toDouble(),
+            onChanged: (v) => _player.seek(Duration(
+                milliseconds: (v * _duration.inMilliseconds).round())),
+            activeColor: Color(AppColors.primaryOrange),
+            inactiveColor: Colors.white24,
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                IconButton(
-                  icon: Icon(Icons.edit_outlined,
-                      color: Color(AppColors.primaryOrange), size: 20),
-                  onPressed: () => onEdit(music),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline,
-                      color: Colors.redAccent, size: 20),
-                  onPressed: () => onDelete(music.id),
-                ),
+                Text(_fmt(_position),
+                    style:
+                        const TextStyle(color: Colors.white54, fontSize: 12)),
+                Text(_fmt(_duration),
+                    style:
+                        const TextStyle(color: Colors.white54, fontSize: 12)),
               ],
             ),
           ),
-        );
-      },
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.replay_10,
+                    color: Colors.white70, size: 32),
+                onPressed: () => _player.seek(Duration(
+                    seconds: (_position.inSeconds - 10)
+                        .clamp(0, _duration.inSeconds))),
+              ),
+              const SizedBox(width: 16),
+              GestureDetector(
+                onTap: () =>
+                    _playing ? _player.pause() : _player.resume(),
+                child: Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                      color: Color(AppColors.primaryOrange),
+                      shape: BoxShape.circle),
+                  child: Icon(
+                      _playing ? Icons.pause : Icons.play_arrow,
+                      color: Colors.white,
+                      size: 30),
+                ),
+              ),
+              const SizedBox(width: 16),
+              IconButton(
+                icon: const Icon(Icons.forward_10,
+                    color: Colors.white70, size: 32),
+                onPressed: () => _player.seek(Duration(
+                    seconds: (_position.inSeconds + 10)
+                        .clamp(0, _duration.inSeconds))),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
+
+  Widget _coverPlaceholder() => Container(
+        width: 120,
+        height: 120,
+        color: Color(AppColors.backgroundBlack),
+        child:
+            Icon(Icons.music_note, color: Color(AppColors.primaryOrange), size: 48),
+      );
 }
 
 // ── Video Tab ─────────────────────────────────────────────────────────────────
@@ -835,9 +1110,21 @@ class _VideoThumbnail extends StatelessWidget {
 
   const _VideoThumbnail({required this.video, required this.onDelete});
 
+  void _openPlayer(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _VideoPlayerScreen(video: video),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GestureDetector(
+      onTap: () => _openPlayer(context),
+      child: Container(
       decoration: BoxDecoration(
         color: Color(AppColors.surfaceDark),
         borderRadius: BorderRadius.circular(14),
@@ -911,6 +1198,141 @@ class _VideoThumbnail extends StatelessWidget {
                 child: const Icon(Icons.delete_outline,
                     color: Colors.redAccent, size: 16),
               ),
+            ),
+          ),
+        ],
+      ),
+      ),
+    );
+  }
+}
+
+// ── Video Player Screen ───────────────────────────────────────────────────────
+
+class _VideoPlayerScreen extends StatefulWidget {
+  final VideoModel video;
+  const _VideoPlayerScreen({required this.video});
+
+  @override
+  State<_VideoPlayerScreen> createState() => _VideoPlayerScreenState();
+}
+
+class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
+  late VideoPlayerController _controller;
+  bool _initialized = false;
+  bool _showControls = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.networkUrl(
+        Uri.parse(_fullUrl(widget.video.videoUrl)));
+    _controller.initialize().then((_) {
+      if (mounted) {
+        setState(() => _initialized = true);
+        _controller.play();
+      }
+    });
+    _controller.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String _fmt(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text(widget.video.titre,
+            style: const TextStyle(color: Colors.white, fontSize: 16)),
+      ),
+      body: Center(
+        child: _initialized
+            ? GestureDetector(
+                onTap: () =>
+                    setState(() => _showControls = !_showControls),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    AspectRatio(
+                      aspectRatio: _controller.value.aspectRatio,
+                      child: VideoPlayer(_controller),
+                    ),
+                    if (_showControls) _buildControls(),
+                  ],
+                ),
+              )
+            : const CircularProgressIndicator(color: Colors.orange),
+      ),
+    );
+  }
+
+  Widget _buildControls() {
+    final playing = _controller.value.isPlaying;
+    final pos = _controller.value.position;
+    final dur = _controller.value.duration;
+    final progress = dur.inMilliseconds > 0
+        ? (pos.inMilliseconds / dur.inMilliseconds).clamp(0.0, 1.0)
+        : 0.0;
+
+    return Positioned.fill(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Container(
+            color: Colors.black45,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Column(
+              children: [
+                Slider(
+                  value: progress.toDouble(),
+                  onChanged: (v) => _controller.seekTo(Duration(
+                      milliseconds:
+                          (v * dur.inMilliseconds).round())),
+                  activeColor: Color(AppColors.primaryOrange),
+                  inactiveColor: Colors.white24,
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(_fmt(pos),
+                        style: const TextStyle(
+                            color: Colors.white54, fontSize: 12)),
+                    GestureDetector(
+                      onTap: () =>
+                          playing ? _controller.pause() : _controller.play(),
+                      child: Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                            color: Color(AppColors.primaryOrange),
+                            shape: BoxShape.circle),
+                        child: Icon(
+                            playing ? Icons.pause : Icons.play_arrow,
+                            color: Colors.white,
+                            size: 26),
+                      ),
+                    ),
+                    Text(_fmt(dur),
+                        style: const TextStyle(
+                            color: Colors.white54, fontSize: 12)),
+                  ],
+                ),
+              ],
             ),
           ),
         ],

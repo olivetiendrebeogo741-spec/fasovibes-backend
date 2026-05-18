@@ -12,7 +12,21 @@ class ArtisteService {
       );
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
-        final list = (body is Map ? body['data'] : body) as List<dynamic>;
+        List<dynamic> list;
+        if (body is List) {
+          list = body;
+        } else if (body is Map && body['data'] is List) {
+          list = body['data'] as List<dynamic>;
+        } else if (body is Map && body['artistes'] is List) {
+          list = body['artistes'] as List<dynamic>;
+        } else if (body is Map) {
+          // chercher la première valeur qui est une List
+          final val = body.values.firstWhere(
+              (v) => v is List, orElse: () => <dynamic>[]);
+          list = val as List<dynamic>;
+        } else {
+          list = [];
+        }
         return list
             .map((e) => ArtisteModel.fromJson(e as Map<String, dynamic>))
             .toList();

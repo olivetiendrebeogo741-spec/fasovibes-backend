@@ -22,4 +22,19 @@ class MusicService {
       throw const NetworkException();
     }
   }
+
+  static Future<int> stream(String id) async {
+    try {
+      final res = await http.post(
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.music}/$id/stream'),
+      );
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        return (body['data']?['streams'] as num?)?.toInt() ?? 0;
+      }
+      return 0;
+    } catch (_) {
+      return 0;
+    }
+  }
 }
