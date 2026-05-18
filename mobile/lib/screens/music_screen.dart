@@ -3,7 +3,6 @@ import 'package:audioplayers/audioplayers.dart';
 import '../config/constants.dart';
 import '../models/artiste.dart';
 import '../models/music.dart';
-import '../services/artiste_service.dart';
 import '../services/music_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -18,17 +17,16 @@ class MusicScreen extends StatefulWidget {
 }
 
 class _MusicScreenState extends State<MusicScreen> {
-  List<ArtisteModel> _artistes = [];
   List<MusicModel> _tracks = [];
-  bool _loading = true;
-  String? _error;
+  bool _loadingTracks = true;
+  String? _errorTracks;
   String _query = '';
   final TextEditingController _searchCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _loadTracks();
   }
 
   @override
@@ -37,24 +35,33 @@ class _MusicScreenState extends State<MusicScreen> {
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+  Future<void> _loadTracks() async {
+    if (mounted) setState(() { _loadingTracks = true; _errorTracks = null; });
     try {
-      final results = await Future.wait([
-        ArtisteService.getAll(),
-        MusicService.getAll(),
-      ]);
-      if (mounted) {
-        setState(() {
-          _artistes = results[0] as List<ArtisteModel>;
-          _tracks   = results[1] as List<MusicModel>;
-        });
-      }
+      final list = await MusicService.getAll();
+      final shuffled = List<MusicModel>.from(list)..shuffle();
+      if (mounted) setState(() { _tracks = shuffled; _loadingTracks = false; });
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() { _errorTracks = e.toString(); _loadingTracks = false; });
     }
+  }
+
+  Future<void> _load() => _loadTracks();
+
+  // Artistes extraits directement depuis les tracks (même source → IDs corrects)
+  List<ArtisteModel> get _artistes {
+    final seen = <String>{};
+    final result = <ArtisteModel>[];
+    for (final t in _tracks) {
+      if (t.artisteRealId.isNotEmpty && seen.add(t.artisteRealId)) {
+        result.add(ArtisteModel(
+          id: t.artisteRealId,
+          nom: t.artisteId,
+          photoProfil: t.artistePhotoUrl,
+        ));
+      }
+    }
+    return result;
   }
 
   List<MusicModel> get _filteredTracks {
@@ -72,9 +79,7 @@ class _MusicScreenState extends State<MusicScreen> {
   }
 
   List<MusicModel> _tracksForArtiste(ArtisteModel artiste) => _tracks
-      .where((t) =>
-          t.artisteId == artiste.id ||
-          t.artisteId.toLowerCase() == artiste.nom.toLowerCase())
+      .where((t) => t.artisteRealId == artiste.id)
       .toList();
 
   @override
@@ -155,110 +160,94 @@ class _MusicScreenState extends State<MusicScreen> {
   // ── Body ───────────────────────────────────────────────────────────────────
 
   Widget _buildBody() {
-    if (_loading) {
-      return const Center(
-          child: CircularProgressIndicator(color: Colors.orange));
-    }
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.wifi_off, size: 56, color: Colors.orange),
-            const SizedBox(height: 16),
-            Text(_error!,
-                style: const TextStyle(color: Colors.white54),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: _load,
-              child: const Text('Réessayer',
-                  style: TextStyle(color: Colors.orange)),
-            ),
-          ],
-        ),
-      );
-    }
-
     final artistes = _filteredArtistes;
     final tracks   = _filteredTracks;
 
     return CustomScrollView(
       slivers: [
-        // ── Section Artistes populaires ──────────────────────────────────
-        if (artistes.isNotEmpty) ...[
-          _SliverSectionHeader(
-            title: 'Artistes populaires',
-            trailing: '${artistes.length} artistes',
-          ),
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 110,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                itemCount: artistes.length,
-                itemBuilder: (_, i) => _ArtisteChip(
-                  artiste: artistes[i],
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ArtistDetailScreen(
-                        artiste: artistes[i],
-                        songs: _tracksForArtiste(artistes[i]),
+        // ── Section Artistes ─────────────────────────────────────────────
+        _SliverSectionHeader(
+          title: 'Artistes populaires',
+          trailing: _loadingTracks ? '' : '${artistes.length} artistes',
+        ),
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 155,
+            child: _loadingTracks
+                ? const Center(child: CircularProgressIndicator(
+                    color: Colors.orange, strokeWidth: 2))
+                : artistes.isEmpty
+                    ? const Center(
+                        child: Text('Aucun artiste',
+                            style: TextStyle(color: Colors.white38)))
+                    : ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: artistes.length,
+                        itemBuilder: (_, i) => _ArtisteChip(
+                          artiste: artistes[i],
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ArtistDetailScreen(
+                                artiste: artistes[i],
+                                songs: _tracksForArtiste(artistes[i]),
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: 8)),
-        ],
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
         // ── Section Albums et singles populaires ─────────────────────────
         _SliverSectionHeader(
           title: 'Albums et singles populaires',
-          trailing: '${tracks.length} titres',
+          trailing: _loadingTracks ? '' : '${tracks.length} titres',
         ),
-        tracks.isEmpty
-            ? const SliverFillRemaining(
-                child: Center(
-                  child: Text('Aucun résultat',
-                      style: TextStyle(color: Colors.white38)),
-                ),
-              )
-            : SliverPadding(
-                padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
-                sliver: SliverGrid(
-                  delegate: SliverChildBuilderDelegate(
-                    (_, i) {
-                      final t = tracks[i];
-                      return _AlbumCard(
-                        track: t,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PlayerScreen(
-                              track: t,
-                              playlist: tracks,
-                              initialIndex: i,
-                            ),
-                          ),
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 220,
+            child: _loadingTracks
+                ? const Center(child: CircularProgressIndicator(
+                    color: Colors.orange, strokeWidth: 2))
+                : _errorTracks != null
+                    ? Center(
+                        child: TextButton.icon(
+                          onPressed: _loadTracks,
+                          icon: const Icon(Icons.refresh, color: Colors.orange),
+                          label: const Text('Réessayer',
+                              style: TextStyle(color: Colors.orange)),
                         ),
-                      );
-                    },
-                    childCount: tracks.length,
-                  ),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 0.80,
-                  ),
-                ),
-              ),
+                      )
+                    : tracks.isEmpty
+                        ? const Center(
+                            child: Text('Aucun morceau',
+                                style: TextStyle(color: Colors.white38)))
+                        : ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                            itemCount: tracks.length,
+                            itemBuilder: (_, i) {
+                              final t = tracks[i];
+                              return _AlbumCard(
+                                track: t,
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PlayerScreen(
+                                      track: t,
+                                      playlist: tracks,
+                                      initialIndex: i,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+          ),
+        ),
       ],
     );
   }
@@ -272,6 +261,17 @@ String _fmtStreams(int n) {
   if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M écoutes';
   if (n >= 1000) return '${(n / 1000).toStringAsFixed(0)}K écoutes';
   return '$n écoute${n > 1 ? 's' : ''}';
+}
+
+String _relativeTime(DateTime dt) {
+  final diff = DateTime.now().difference(dt);
+  if (diff.inMinutes < 1) return 'À l\'instant';
+  if (diff.inMinutes < 60) return 'Il y a ${diff.inMinutes} min';
+  if (diff.inHours < 24) return 'Il y a ${diff.inHours} h';
+  if (diff.inDays < 7) return 'Il y a ${diff.inDays} j';
+  if (diff.inDays < 30) return 'Il y a ${(diff.inDays / 7).floor()} sem.';
+  if (diff.inDays < 365) return 'Il y a ${(diff.inDays / 30).floor()} mois';
+  return 'Il y a ${(diff.inDays / 365).floor()} an(s)';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -324,14 +324,14 @@ class _ArtisteChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 76,
-        margin: const EdgeInsets.only(right: 12),
+        width: 110,
+        margin: const EdgeInsets.only(right: 20),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             artiste.photoProfil != null
                 ? CircleAvatar(
-                    radius: 32,
+                    radius: 52,
                     backgroundImage: NetworkImage(artiste.photoProfil!),
                     onBackgroundImageError: (_, __) {},
                     backgroundColor: Colors.orange,
@@ -339,18 +339,26 @@ class _ArtisteChip extends StatelessWidget {
                 : _ArtistePlaceholder(initial: artiste.nom.isNotEmpty
                     ? artiste.nom[0].toUpperCase()
                     : 'A'),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
               artiste.nom,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
             ),
+            if (artiste.genre != null)
+              Text(
+                artiste.genre!,
+                style: const TextStyle(color: Colors.white38, fontSize: 11),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
           ],
         ),
       ),
@@ -365,13 +373,13 @@ class _ArtistePlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CircleAvatar(
-      radius: 32,
+      radius: 52,
       backgroundColor: Colors.orange,
       child: Text(
         initial,
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 22,
+          fontSize: 32,
           fontWeight: FontWeight.bold,
         ),
       ),
@@ -380,7 +388,7 @@ class _ArtistePlaceholder extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Album Card (GridView 2 colonnes)
+//  Album Card (scroll horizontal Spotify-style)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _AlbumCard extends StatelessWidget {
@@ -393,26 +401,29 @@ class _AlbumCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: track.coverImg != null
-                  ? Image.network(
-                      track.coverImg!,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      errorBuilder: (_, __, ___) => const _CoverPlaceholder(),
-                    )
-                  : const _CoverPlaceholder(),
+      child: Container(
+        width: 150,
+        margin: const EdgeInsets.only(right: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                width: 150,
+                height: 150,
+                child: track.coverImg != null
+                    ? Image.network(
+                        track.coverImg!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            const _CoverPlaceholder(),
+                      )
+                    : const _CoverPlaceholder(),
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Text(
+            const SizedBox(height: 8),
+            Text(
               track.titre,
               style: TextStyle(
                 color: Color(AppColors.textWhite),
@@ -422,31 +433,15 @@ class _AlbumCard extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Text(
+            const SizedBox(height: 2),
+            Text(
               track.artisteId,
-              style: const TextStyle(color: Colors.white38, fontSize: 11),
+              style: const TextStyle(color: Colors.white38, fontSize: 12),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-          ),
-          if (track.streams > 0)
-            Padding(
-              padding: const EdgeInsets.only(left: 2, top: 1),
-              child: Row(
-                children: [
-                  const Icon(Icons.headphones, size: 10, color: Colors.white24),
-                  const SizedBox(width: 3),
-                  Text(
-                    _fmtStreams(track.streams),
-                    style: const TextStyle(color: Colors.white24, fontSize: 10),
-                  ),
-                ],
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -743,19 +738,27 @@ class _SongTile extends StatelessWidget {
                     track.artisteId,
                     style: const TextStyle(color: Colors.white38, fontSize: 12),
                   ),
-                  if (track.streams > 0)
-                    Row(
-                      children: [
-                        const Icon(Icons.headphones,
-                            size: 11, color: Colors.white24),
-                        const SizedBox(width: 3),
-                        Text(
-                          _fmtStreams(track.streams),
-                          style: const TextStyle(
-                              color: Colors.white24, fontSize: 11),
-                        ),
-                      ],
-                    ),
+                  Row(
+                    children: [
+                      const Icon(Icons.headphones,
+                          size: 11, color: Colors.white24),
+                      const SizedBox(width: 3),
+                      Text(
+                        _fmtStreams(track.streams),
+                        style: const TextStyle(
+                            color: Colors.white24, fontSize: 11),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.access_time,
+                          size: 11, color: Colors.white24),
+                      const SizedBox(width: 3),
+                      Text(
+                        _relativeTime(track.createdAt),
+                        style: const TextStyle(
+                            color: Colors.white24, fontSize: 11),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -943,22 +946,30 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         Text(_current.artisteId,
                             style: const TextStyle(
                                 color: Colors.white54, fontSize: 14)),
-                        if (_current.streams > 0)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.headphones,
-                                    size: 13, color: Colors.white38),
-                                const SizedBox(width: 4),
-                                Text(
-                                  _fmtStreams(_current.streams),
-                                  style: const TextStyle(
-                                      color: Colors.white38, fontSize: 12),
-                                ),
-                              ],
-                            ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.headphones,
+                                  size: 13, color: Colors.white38),
+                              const SizedBox(width: 4),
+                              Text(
+                                _fmtStreams(_current.streams),
+                                style: const TextStyle(
+                                    color: Colors.white38, fontSize: 12),
+                              ),
+                              const SizedBox(width: 12),
+                              const Icon(Icons.access_time,
+                                  size: 13, color: Colors.white38),
+                              const SizedBox(width: 4),
+                              Text(
+                                _relativeTime(_current.createdAt),
+                                style: const TextStyle(
+                                    color: Colors.white38, fontSize: 12),
+                              ),
+                            ],
                           ),
+                        ),
                       ],
                     ),
                   ),

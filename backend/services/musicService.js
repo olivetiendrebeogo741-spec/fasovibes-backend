@@ -1,7 +1,7 @@
 const Music = require('../models/Music');
 const AppError = require('../utils/AppError');
 
-exports.getAll = async () => Music.find().sort({ createdAt: -1 }).populate('artisteId', 'nom');
+exports.getAll = async () => Music.find().sort({ createdAt: -1 }).populate('artisteId', 'nom photoProfil');
 
 exports.create = async ({ titre, artisteId, audioUrl, coverImg }) => {
   if (!titre || !artisteId || !audioUrl) {
